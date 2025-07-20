@@ -1,6 +1,6 @@
 {
   "name": "SASI-MD",
-  "description": "WhatsApp bot made by Leadx SASI",
+  "description": "Javascript WhatsApp bot made by Leadx SASI",
   "logo": "https://telegra.ph/file/04f33ed3a84d24104a9ef.jpg",
   "keywords": ["bot"],
   "success_url": "/",
