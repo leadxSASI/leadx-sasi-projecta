@@ -1,12 +1,11 @@
 // plugins/autoreact.js
 
 export async function before(m, { conn }) {
-  // Auto-react emoji (change this to what you want)
   const emoji = '😎';
 
-  // Only react to incoming messages from other users (not self)
-  if (!m.fromMe && m.chat && m.key && m.key.id) {
+  if (!m?.fromMe && m?.chat && m?.key?.id) {
     try {
+      console.log(`[AUTO-REACT] reacting to: ${m.key.id}`);
       await conn.sendMessage(m.chat, {
         react: {
           text: emoji,
@@ -14,7 +13,7 @@ export async function before(m, { conn }) {
         }
       });
     } catch (e) {
-      console.error('Auto-react error:', e.message);
+      console.error('[AUTO-REACT ERROR]', e);
     }
   }
 }
