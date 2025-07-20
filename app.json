@@ -1,13 +1,13 @@
 {
-  "name": "HASHAN-MD",
-  "description": "Javascript WhatsApp bot made by YourName",
+  "name": "SASI-MD",
+  "description": "WhatsApp bot made by Leadx SASI",
   "logo": "https://telegra.ph/file/04f33ed3a84d24104a9ef.jpg",
   "keywords": ["bot"],
   "success_url": "/",
 
   "env": {
     "SESSION_ID": {
-      "description": "o1gjXaBZ#Z7pnafYx1Y9O8HOTI03vBjsvWr3tRLNdU3uG_nSjF18",
+      "description": "E9JCTLJD#PkcbAaPa_bXWqtKIi7xRDUb2O64tZT0BHcm2xO3SMXg",
       "required": true
     },  
 
