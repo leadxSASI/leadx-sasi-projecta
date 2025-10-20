@@ -1,74 +1,44 @@
 <!DOCTYPE html>
-<html lang="si">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Telegram Bot Image List</title>
+  <title>Short Video Downloader</title>
   <style>
-    body {
-      font-family: sans-serif;
-      background: #f2f2f2;
-      margin: 0;
-      padding: 20px;
-    }
-    h1 {
-      text-align: center;
-    }
-    .gallery {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .gallery img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
+    body { font-family: Arial; padding: 20px; }
+    input { width: 400px; padding: 8px; }
+    button { padding: 8px 12px; margin-left: 5px; }
+    #result { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>📸 Telegram Bot Image List</h1>
-  <div id="gallery" class="gallery"></div>
+  <h2>Short Video Downloader</h2>
+  <input type="text" id="url" placeholder="Paste video URL here"/>
+  <button onclick="downloadVideo()">Download</button>
+
+  <div id="result"></div>
 
   <script>
-    const token = "8079056355:AAGP1alTryOpzFmtk8ZxNWKxs6q59Mbuj70";
+    async function downloadVideo() {
+      const url = document.getElementById("url").value;
+      if(!url) return alert("Please enter URL");
 
-    async function loadImages() {
+      document.getElementById("result").innerHTML = "Downloading...";
+      
       try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
-        const data = await res.json();
-        const gallery = document.getElementById('gallery');
-        gallery.innerHTML = '';
-
-        data.result.forEach(update => {
-          if (update.message && update.message.photo) {
-            const photoSizes = update.message.photo;
-            const fileId = photoSizes[photoSizes.length - 1].file_id; // largest size
-            fetchFile(fileId, gallery);
-          }
+        const response = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
         });
-
-      } catch (e) {
-        alert("⚠️ Error: " + e.message);
-        console.log(e);
+        const data = await response.json();
+        if(data.download_link){
+          document.getElementById("result").innerHTML = `<a href="${data.download_link}" download>Click here to download</a>`;
+        } else {
+          document.getElementById("result").innerHTML = "Download failed";
+        }
+      } catch(e){
+        document.getElementById("result").innerHTML = "Error occurred";
       }
     }
-
-    async function fetchFile(fileId, gallery) {
-      const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
-      const fileData = await fileRes.json();
-      if (fileData.ok) {
-        const filePath = fileData.result.file_path;
-        const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
-        const img = document.createElement('img');
-        img.src = fileUrl;
-        gallery.appendChild(img);
-      }
-    }
-
-    loadImages();
   </script>
 </body>
 </html>
