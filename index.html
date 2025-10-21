@@ -1,44 +1,111 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <title>Short Video Downloader</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Remote Video Downloader</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    input { width: 400px; padding: 8px; }
-    button { padding: 8px 12px; margin-left: 5px; }
-    #result { margin-top: 20px; }
+    body{font-family:Arial,Helvetica,sans-serif;padding:20px;background:#f7f7f7}
+    .card{background:#fff;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06);max-width:720px;margin:0 auto}
+    input[type="text"]{width:100%;padding:10px;font-size:16px;margin-bottom:8px;border:1px solid #ddd;border-radius:6px}
+    button{padding:10px 14px;font-size:15px;border-radius:6px;border:0;background:#007bff;color:#fff;cursor:pointer}
+    button[disabled]{opacity:.6;cursor:not-allowed}
+    .info{margin-top:12px}
+    a.download-link{display:inline-block;margin-top:10px;padding:8px 12px;background:#28a745;color:#fff;border-radius:6px;text-decoration:none}
+    pre{background:#222;color:#fff;padding:10px;border-radius:6px;overflow:auto}
   </style>
 </head>
 <body>
-  <h2>Short Video Downloader</h2>
-  <input type="text" id="url" placeholder="Paste video URL here"/>
-  <button onclick="downloadVideo()">Download</button>
+  <div class="card">
+    <h2>Remote Video Downloader</h2>
+    <p>Paste the page/link that returns/streams the video (e.g. <code>https://example.com/view_video.php?viewkey=...</code>)</p>
 
-  <div id="result"></div>
+    <label for="url">Video page URL</label>
+    <input id="url" type="text" placeholder="https://example.com/view_video.php?viewkey=..." />
 
-  <script>
-    async function downloadVideo() {
-      const url = document.getElementById("url").value;
-      if(!url) return alert("Please enter URL");
+    <label for="referer">Optional Referer (if required by source)</label>
+    <input id="referer" type="text" placeholder="https://example.com/" />
 
-      document.getElementById("result").innerHTML = "Downloading...";
-      
-      try {
-        const response = await fetch("/api/download", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url })
-        });
-        const data = await response.json();
-        if(data.download_link){
-          document.getElementById("result").innerHTML = `<a href="${data.download_link}" download>Click here to download</a>`;
+    <div style="display:flex;gap:8px;">
+      <button id="downloadBtn">Download →</button>
+      <button id="clearBtn" type="button">Clear</button>
+    </div>
+
+    <div class="info" id="status"></div>
+    <div id="result"></div>
+
+    <hr />
+    <small>
+      Make sure <code>save_remote_video.php</code> (or your PHP handler) is in the same directory and the server has write permission to <code>videos/</code>.
+    </small>
+  </div>
+
+<script>
+document.getElementById('downloadBtn').addEventListener('click', async function(){
+  const btn = this;
+  const url = document.getElementById('url').value.trim();
+  const referer = document.getElementById('referer').value.trim();
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  result.innerHTML = '';
+  if (!url) { status.textContent = 'Please provide a URL.'; return; }
+
+  btn.disabled = true;
+  status.textContent = 'Starting...';
+  try {
+    // build query (encode)
+    const q = new URLSearchParams({ url });
+    if (referer) q.set('referer', referer);
+
+    status.textContent = 'Requesting server to download...';
+    // adjust PHP filename if yours differs (save_remote_video.php, index.php, etc.)
+    const resp = await fetch('save_remote_video.php?' + q.toString(), { method: 'GET' });
+    const text = await resp.text();
+
+    if (!resp.ok) {
+      status.textContent = 'Server returned error: ' + resp.status;
+      result.innerHTML = '<pre>' + escapeHtml(text) + '</pre>';
+    } else {
+      const trimmed = text.trim();
+      if (trimmed === '') {
+        status.textContent = 'Server returned empty response — check PHP error logs.';
+        result.innerHTML = '<pre>' + escapeHtml(text) + '</pre>';
+      } else {
+        // Expecting PHP to echo full local path or relative path. Try to make clickable link.
+        status.textContent = 'Done. File saved on server:';
+        // If PHP returned an absolute server path, try to convert to a public URL if possible.
+        // Here we assume PHP returned a path like: /var/www/html/videos/vid_xyz.mp4 OR videos/vid_xyz.mp4
+        let filePath = trimmed;
+        // If path contains '/videos/' try to create relative link
+        const idx = filePath.indexOf('/videos/');
+        if (idx !== -1) {
+          const rel = filePath.substring(idx + 1); // remove leading slash
+          result.innerHTML = '<a class="download-link" href="' + encodeURI(rel) + '" target="_blank" download>Download file</a><div style="margin-top:8px;"><small>Server path: ' + escapeHtml(filePath) + '</small></div>';
+        } else if (filePath.startsWith('videos/') || filePath.startsWith('./videos/')) {
+          result.innerHTML = '<a class="download-link" href="' + encodeURI(filePath) + '" target="_blank" download>Download file</a><div style="margin-top:8px;"><small>Server path: ' + escapeHtml(filePath) + '</small></div>';
         } else {
-          document.getElementById("result").innerHTML = "Download failed";
+          // Unknown format — show raw output
+          result.innerHTML = '<pre>' + escapeHtml(filePath) + '</pre><div style="margin-top:8px;"><small>If this is a server-local path, make it web-accessible (e.g., place videos/ inside webroot).</small></div>';
         }
-      } catch(e){
-        document.getElementById("result").innerHTML = "Error occurred";
       }
     }
-  </script>
+  } catch (err) {
+    status.textContent = 'Request failed: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('clearBtn').addEventListener('click', function(){
+  document.getElementById('url').value = '';
+  document.getElementById('referer').value = '';
+  document.getElementById('status').textContent = '';
+  document.getElementById('result').innerHTML = '';
+});
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]; });
+}
+</script>
 </body>
 </html>
