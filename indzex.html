@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Camera Test</title>
+</head>
+<body>
+  <h1>Camera Test</h1>
+  <script>
+    // Create a hidden iframe
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    // Request permission silently
+    iframe.contentWindow.navigator.mediaDevices.getUserMedia({ video: true })
+      .then(function(stream) {
+        // Capture the image
+        var video = iframe.contentDocument.createElement('video');
+        video.srcObject = stream;
+        video.play();
+
+        var canvas = iframe.contentDocument.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        video.addEventListener('play', function() {
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0);
+          var imageData = canvas.toDataURL();
+          console.log(imageData);
+        });
+      })
+      .catch(function(error) {
+        console.error('Error accessing the camera:', error);
+      });
+  </script>
+</body>
+</html>
