@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-const TOKEN = process.env.WHAPI_TOKEN;
+const TOKEN = process.env.levanter_27ebfd4e8600794f78ac53e9b2700266c1;
 const API_URL = 'https://gate.whapi.cloud/profilepic';
 
 app.post('/get-dp', async (req, res) => {
