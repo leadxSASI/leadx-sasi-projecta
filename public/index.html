@@ -1,68 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ULTIMATE 18+ DOWNLOADER</title>
+  <title>18+ Video Downloader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background: linear-gradient(135deg, #ff006e, #8338ec); color: white; min-height: 100vh; }
-    .card { background: rgba(0,0,0,0.8); border: none; }
-    .btn-danger { background: #ff006e; }
-    .progress { height: 25px; }
+    body { background: #0d0d0d; color: #fff; min-height: 100vh; }
+    .card { background: #1a1a1a; border: 1px solid #333; }
+    .btn-danger { background: #e91e63; border: none; }
+    .btn-danger:hover { background: #c2185b; }
   </style>
 </head>
-<body>
-<div class="container py-5">
-  <h1 class="text-center mb-4">ULTIMATE 18+ VIDEO DOWNLOADER</h1>
-  <p class="text-center">50+ Sites • HD/4K • 100% Success</p>
+<body class="p-4">
+<div class="container">
+  <h1 class="text-center mb-4">18+ Video Downloader</h1>
+  <p class="text-center text-muted">Pornhub • Xvideos • Xhamster • SpankBang + More</p>
 
   <div class="card p-4">
-    <input type="url" id="url" class="form-control form-control-lg mb-3" placeholder="Paste any 18+ video URL">
-    <button onclick="startDownload()" class="btn btn-danger btn-lg w-100">DOWNLOAD NOW</button>
-    <div id="status" class="mt-3 text-center"></div>
-    <div id="progress" class="mt-3" style="display:none;">
-      <div class="progress">
-        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%">Extracting...</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="mt-4 text-center small">
-    <p>Supported: Pornhub, Xvideos, Xhamster, SpankBang, BangBros, Vixen, Tushy, Blacked, NaughtyAmerica + 40 more!</p>
+    <input type="url" id="url" class="form-control form-control-lg mb-3" placeholder="Paste video URL here">
+    <button onclick="download()" class="btn btn-danger btn-lg w-100">DOWNLOAD NOW</button>
+    <div id="result" class="mt-4 text-center"></div>
   </div>
 </div>
 
 <script>
-async function startDownload() {
+async function download() {
   const url = document.getElementById('url').value.trim();
-  const status = document.getElementById('status');
-  const progress = document.getElementById('progress');
-  
-  if (!url) return status.innerHTML = '<p class="text-danger">URL දාන්න!</p>';
+  const result = document.getElementById('result');
+  if (!url) return result.innerHTML = '<p class="text-danger">URL දාන්න!</p>';
 
-  status.innerHTML = '<p class="text-info">Extracting video source...</p>';
-  progress.style.display = 'block';
+  result.innerHTML = '<p class="text-info">Extracting video...</p>';
 
   try {
-    const res = await fetch('/download', {
+    const res = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     });
     const data = await res.json();
 
-    if (data.success && data.downloadUrl) {
-      status.innerHTML = `
-        <p class="text-success">Ready! <a href="${data.downloadUrl}" download class="btn btn-success btn-lg mt-2">
+    if (data.success) {
+      result.innerHTML = `
+        <p class="text-success">Ready!</p>
+        <a href="${data.downloadUrl}" download class="btn btn-success btn-lg w-100">
           DOWNLOAD HD VIDEO
-        </a></p>
+        </a>
       `;
-      progress.style.display = 'none';
     } else {
-      status.innerHTML = `<p class="text-danger">${data.error}</p>`;
-      progress.style.display = 'none';
+      result.innerHTML = `<p class="text-danger">${data.error}</p>`;
     }
   } catch {
-    status.innerHTML = '<p class="text-danger">Server error!</p>';
+    result.innerHTML = '<p class="text-danger">Server error. Try again!</p>';
   }
 }
 </script>
