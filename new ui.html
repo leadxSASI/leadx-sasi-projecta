@@ -1,0 +1,2141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>WaCrop — Ultra Floating Tile Viewer (Fixed + UI)</title>
+  <meta name="description" content="Updated WaCrop with fixed buttons and floating viewer.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- CropperJS -->
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.css"/>
+<style>
+/* ========== YOUR ORIGINAL ROOT & BASE STYLES (keep these) ========== */
+:root{
+  --bg:#0b0d10; --bg-elev-1:#111418; --bg-elev-2:#151a21;
+  --text:#e7ecf3; --muted:#aab4c0; --accent:#59c1ff; --accent-2:#8b5cf6;
+  --border:#232a35; --radius:9px; --radius-lg:17px;
+  --space-3:.5rem; --space-4:.6rem; --space-6:1rem;
+  --maxw:1200px;
+  --shadow-lg: 0 18px 60px rgba(0,0,0,0.55);
+  --glass: rgba(255,255,255,0.02);
+  --duration-fast: 120ms; /* faster */
+  --duration-medium: 200ms;
+  --duration-slow: 360ms;
+  --maxMessageLen:500;
+  --blur-strength:6px; --modal-z:9999; --gap:10px;
+  --accent-contrast: #00131f;
+  --global-scale: 0.95;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;width:100%;overflow-x:hidden}
+body{
+  margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  background:linear-gradient(180deg,var(--bg), #06060a 140%);
+  color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.35;
+  transform: none;
+  min-width: 100%;
+}
+
+/* keep the rest of your original base rules (buttons, panels, hero, etc.) - no changes needed */
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+.container{max-width:var(--maxw);padding:0 var(--space-6);margin:0 auto;width:100%}
+.card{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0));border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg)}
+.pad{padding:var(--space-6)}
+.muted{color:var(--muted)}
+.badge{display:inline-block;background:linear-gradient(135deg, rgba(89,193,255,.12), rgba(139,92,246,.12));color:var(--text);border:1px solid var(--border);padding:5px 8px;border-radius:999px;font-size:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:8px;border:1px solid transparent;font-weight:600;cursor:pointer;user-select:none;font-size:14px}
+.abtn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 180px;
+  text-align: center;
+}
+.abtn-ghost{border-color:var(--border);background:transparent;color:var(--text);width:100%}
+.abtn-primary{background:linear-gradient(180deg,var(--accent),#2aa9ff);Color:var(--accent-contrast);width:100%}
+.btn-ghost{border-color:var(--border);background:transparent;color:var(--text)}
+.btn-primary{background:linear-gradient(180deg,var(--accent),#2aa9ff);Color:var(--accent-contrast)}
+header.site-header{position:sticky;top:0;z-index:60;backdrop-filter:blur(8px);background:rgba(11,13,16,.45);border-bottom:1px solid var(--border);transition:backdrop-filter .28s ease}
+.nav{display:flex;align-items:center;justify-content:space-between;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:var(--accent-contrast);font-weight:900;box-shadow:0 10px 28px rgba(59,130,246,0.12)}
+.nav ul{display:flex;gap:14px;list-style:none;margin:0;padding:0}
+.nav a.link{color:var(--muted);font-weight:500;transition:color var(--duration-fast);font-size:14px}
+.nav a.link:hover{color:var(--accent)}
+.hero{padding:68px 0 30px;position:relative;overflow:visible}
+.top-shade{position:absolute;left:0;right:0;top:0;height:220px;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(560px 220px at 20% 10%, rgba(89,193,255,.12), transparent 60%),
+    radial-gradient(680px 220px at 90% 20%, rgba(139,92,246,.10), transparent 60%);
+  filter: blur(4px);
+}
+.content{display:grid;grid-template-columns:1.25fr 1fr;gap:var(--space-6);align-items:center}
+
+
+.panel{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-lg)}
+
+/* ========== SLIDER ========== */
+/* Stage: full width of panel (up to --stage-maxw), responsive via aspect-ratio */
+.stage {
+  width:100%;
+  max-width:var(--stage-maxw);
+  margin:12px auto 6px auto;
+  aspect-ratio: var(--stage-aspect);
+  border-radius:12px;
+  overflow:hidden;
+  position:relative;
+  background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.25));
+  box-shadow: 0 14px 40px rgba(0,0,0,0.55);
+  touch-action: pan-y;
+}
+
+/* track is a flex row with clones (first/last) for loop */
+.track { position:absolute; left:0; top:0; height:100%; display:flex; will-change:transform; }
+
+/* each slide takes stage width (set by JS) */
+.slide { flex:0 0 auto; user-select:none; -webkit-user-drag:none; display:block; overflow:hidden; }
+.slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+
+/* status and controls */
+.status { position:absolute; left:12px; top:12px; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,0.45); color:var(--muted); font-size:13px; z-index:10; pointer-events:none; }
+.controls-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:var(--stage-maxw); margin:10px auto 0 auto; padding:0 6px; }
+.controls-row .btn { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+.dots{ display:flex; gap:8px; align-items:center; justify-content:center; flex:1; }
+.dot{ width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.06); transition:transform .18s, background .18s; cursor:pointer; }
+.dot.active{ background:var(--accent); transform:scale(1.35); box-shadow:0 6px 18px rgba(0,0,0,0.45); }
+
+/* dragging visual */
+.stage.dragging .slide img { filter:brightness(.95); transform: translateZ(0); }
+
+/* responsive */
+@media (max-width:920px){
+  :root{ --stage-maxw: 760px; }
+}
+@media (max-width:720px){
+  :root{ --stage-maxw: 100%; --stage-aspect: 4/3; }
+  .controls-row{ padding:0 4px; }
+}
+
+
+.section-title{font-size:1.4rem;margin:0 0 var(--space-6)}
+.kicker{font-weight:700;color:var(--accent);letter-spacing:.2px}
+.grid{display:grid;gap:var(--space-6)}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+@media (max-width:780px){ .content{grid-template-columns:1fr} .grid-3{grid-template-columns:1fr} .nav ul{display:none} }
+.comments-wrap{max-width:1100px;margin:0 auto}
+.comments-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.rating-summary{display:flex;align-items:center;gap:12px}
+.rating-big{font-size:24px;font-weight:800;color:var(--accent)}
+.rating-count{color:var(--muted);font-size:12px}
+.comment-form{display:grid;gap:8px;background:linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,.01));border:1px solid var(--border);padding:12px;border-radius:10px}
+.input,textarea{width:100%;padding:8px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text);outline:none;font-size:14px}
+textarea{min-height:72px;resize:vertical}
+.starbar{display:flex;gap:6px;align-items:center;user-select:none}
+.star{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,0.02);border:1px solid var(--border);cursor:pointer}
+.star svg{width:16px;height:16px;opacity:.9}
+.star.active{background:linear-gradient(180deg,var(--accent),var(--accent-2));border-color:transparent}
+.comment-controls{display:flex;gap:8px;align-items:center}
+.sort-select{background:transparent;border:1px solid var(--border);padding:6px;border-radius:8px;color:var(--muted);font-size:13px}
+.comment-list{margin-top:12px;display:grid;gap:10px}
+.comment-item{padding:10px;border-radius:10px;border:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,.01));touch-action:manipulation}
+.comment-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.comment-meta{display:flex;gap:8px;align-items:center}
+.username{font-weight:700}
+.comment-time{color:var(--muted);font-size:12px}
+.comment-text{margin-top:6px;color:var(--muted);white-space:pre-wrap}
+.small-btn{padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px}
+.see-more{display:block;text-align:center;padding:8px;border-radius:10px;border:1px dashed var(--border);color:var(--muted);margin-top:8px;cursor:pointer}
+.empty{color:var(--muted);padding:12px;text-align:center}
+
+/* ========== TILE CUTTER + PREVIEW (modified) ========== */
+.tc-wrap{
+   background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); 
+   border-radius:12px; 
+   max-width: 93%;
+   border:1px solid rgba(255,255,255,0.03);
+}
+.tc-stage{padding:10px; border-radius:10px; background: linear-gradient(180deg, rgba(10,14,18,0.45), rgba(10,14,18,0.25));}
+.tc-preview{display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px dashed rgba(255,255,255,0.02);background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));width:100%;max-width:100%;margin:0 auto;overflow:hidden;position:relative;touch-action:none}
+
+#preview{padding:10px; display:block;max-width:100%;max-height:100%;margin:0 auto;opacity:0;transform:scale(.98);transition:opacity .18s ease, transform .18s cubic-bezier(.2,.9,.3,1);object-fit:contain;user-select:none;touch-action:none}
+#preview.visible{opacity:1;transform:none}
+
+.tc-controls{align-items:center;}
+.mode-btn{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer; display:none}
+.mode-btn.active{background:linear-gradient(180deg,var(--accent),#2aa9ff);color:var(--accent-contrast);border-color:transparent; display:none}
+.zoom-control{display:flex;align-items:center;gap:8px}
+.zoom-range{width:220px}
+
+/* panel details table */
+#panelDetails table{width:100%;border-collapse:collapse;font-size:14px}
+#panelDetails th, #panelDetails td{padding:8px 10px;border-radius:6px}
+#panelDetails tr td{color:var(--muted)}
+#panelDetails th{color:var(--accent);text-align:left;width:40%;font-weight:700}
+#panelDetails td{background:transparent;text-align:left}
+
+/* ========== MODAL (overlay + card + transitions) ========== */
+.modal-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);backdrop-filter: blur(var(--blur-strength)); -webkit-backdrop-filter: blur(var(--blur-strength));opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:var(--modal-z)}
+.modal-overlay.show{display:flex;opacity:1;pointer-events:auto}
+
+/* modal card entry/exit */
+.modal-card {
+  transition: transform .18s cubic-bezier(.2,.9,.3,1), opacity .18s ease;
+  transform: translateY(10px) scale(.992);
+  opacity: 0;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+.modal-overlay.show .modal-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* explicit close animation */
+.modal-card.fade-out {
+  animation: modalFadeOut .18s ease forwards;
+}
+@keyframes modalFadeOut {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(.996);
+    filter: blur(2px);
+  }
+}
+
+
+/* ========== GRID + TILE ANIMATIONS (important fixes) ========== */
+/* preview grid (tiles) */
+.preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap);align-items:stretch;opacity:1;will-change:transform,opacity}
+.preview-grid .tile{
+  padding:0;background:#071018;border-radius:8px;
+  /* initial (hidden) state for animation */
+  opacity: 0;
+  transform: translateY(10px) scale(.994);
+  transition: opacity .22s cubic-bezier(.2,.9,.3,1), transform .26s cubic-bezier(.2,.9,.3,1);
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  -webkit-transform-origin: center;
+  -moz-transform-origin: center;
+}
+/* visible state */
+.preview-grid .tile.show{
+  opacity: 1;
+  transform: none;
+}
+
+/* tile image subtle pop */
+.preview-grid img{
+  display:block;width:100%;height:100%;object-fit:cover;border-radius:8px;max-height:200px;
+  transform: scale(.985);
+  transition: transform .22s cubic-bezier(.2,.9,.3,1), opacity .18s ease;
+  opacity: 0.98;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+.preview-grid .tile.show img{
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* single preview */
+.preview-single{display:none;align-items:center;justify-content:center;min-height:48vh;position:relative}
+.preview-single.show{display:flex}
+.preview-single img{max-width:100%;max-height:72vh;will-change:transform;cursor:grab;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.6);transition:transform .12s ease,opacity .12s ease}
+
+/* small helpers */
+.preview-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.preview-title{font-weight:800;font-size:15px}
+.preview-actions{display:flex;gap:8px;align-items:center}
+.hint{color:var(--muted);font-size:12px;text-align:center;margin-top:6px}
+
+.fade-out{animation:zoomOutAnim .18s ease forwards}
+@keyframes zoomOutAnim { to { opacity:0; transform:translateY(14px) scale(.995); filter:blur(4px) } }
+
+.appear{opacity:0;transform:translateY(8px);transition:opacity .18s ease, transform .18s ease}
+.appear.show{opacity:1;transform:none}
+
+#panelDetails{opacity:0;transform:translateY(6px);transition:opacity .18s ease, transform .18s ease}
+#panelDetails.show{opacity:1;transform:none}
+#tc_section{display:none;opacity:0;transform:translateY(12px);transition:opacity .18s ease, transform .18s ease}
+#tc_section.tc-visible{display:block;opacity:1;transform:none}
+.ui-hidden{display:none !important;opacity:0;transform:translateY(6px)}
+.ui-show{display:inline-flex !important;opacity:1;transform:none;transition:opacity .18s ease, transform .18s ease}
+@media (max-width:720px){ .modal-card{padding:10px} .preview-grid img{max-height:140px} .preview-single img{max-height:60vh} }
+
+body.modal-open > :not(.modal-overlay){filter:blur(2px) contrast(.98);pointer-events:none;user-select:none}
+.modal-backdrop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:calc(var(--modal-z) - 1)}
+.modal-backdrop.show{opacity:1;pointer-events:auto}
+.preview-actions button{padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:var(--text);font-size:13px}
+
+/* ensure cropper handles visible & usable */
+.cropper-point { display: block !important; }
+.cropper-face { cursor: move !important; touch-action: none; }
+
+/* performance hints */
+.tile, .modal-card, #preview { -webkit-font-smoothing:antialiased; -webkit-backface-visibility:hidden; backface-visibility:hidden; }
+
+/* ========== BOTTOM SHEET / DRAWER STYLES (FAST) ========== */
+/* overlay for drawer (separate from modal-overlay) */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .08s linear;
+  z-index: 1050;
+  backdrop-filter: blur(3px);
+}
+.sheet-overlay.show { opacity: 1; pointer-events: auto; }
+
+/* bottom drawer itself - minimal animation for speed */
+.bottom-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: -100vh; /* hidden by default */
+  z-index: 1060;
+  max-height: 92vh;
+  background: linear-gradient(180deg, rgba(14,18,22,0.98), rgba(8,10,12,0.98));
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  box-shadow: 0 -20px 60px rgba(0,0,0,0.6);
+  /* very fast transition so it feels instant */
+  transition: bottom .06s linear;
+  transform: translateY(0);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.03);
+  padding-bottom: 18px;
+}
+
+/* open state (bottom set to 0 instantly) */
+.bottom-drawer.open { bottom: 0; }
+
+/* small handle */
+.drawer-handle {
+  width: 100%;
+  padding: 10px 14px 8px 14px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:10px;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  position:relative;
+}
+.drawer-bar {
+  width: 54px;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+/* drawer content area */
+.drawer-content {
+  padding: 14px 18px 18px 18px;
+  overflow:auto;
+  max-height: calc(92vh - 56px);
+}
+
+/* drawer actions */
+.drawer-row { display:flex;align-items:center;justify-content:space-between;padding:10px 6px;border-radius:10px }
+.drawer-item { display:flex;gap:12px;align-items:center }
+.drawer-title { font-weight:700 }
+.drawer-sub { color:var(--muted); font-size:13px }
+
+/* simple close button in handle */
+.drawer-close-btn {
+  position:absolute;
+  right:12px;
+  top:10px;
+  background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;color:var(--muted);cursor:pointer;
+  z-index:1065;
+}
+
+/* smaller screens: rounded full width */
+@media (max-width:480px){
+  .drawer-bar{ width: 42px; height:5px; }
+  .bottom-drawer { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+}
+
+/* ========== PRELOADER (NEW) ========== */
+.loading-overlay{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;background:rgba(6,8,10,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:opacity .36s ease,visibility .36s}
+.loading-overlay.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.loading-box{width:min(520px,92%);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:20px;border-radius:12px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,0.6)}
+.progress{height:10px;background:rgba(255,255,255,0.04);border-radius:999px;overflow:hidden;margin:12px 0}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#8b5cf6);transition:width .24s ease}
+.spinner{width:36px;height:36px;border-radius:50%;border:4px solid rgba(255,255,255,0.06);border-top-color:var(--accent);margin:10px auto;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ========== NEW: ALTERNATING BOX LIST ========== */
+.features-alt {
+  max-width: var(--maxw);
+  margin: 36px auto;
+  padding: 0 var(--space-6);
+  display: grid;
+  gap: 18px;
+}
+.feature-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+}
+.feature-box .box-image{
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.02);
+}
+.feature-box .box-image img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+.feature-box .box-content{
+  padding: 8px 4px;
+}
+.feature-box .box-content h4{ margin:0 0 8px; font-size:1.05rem; color:var(--text); }
+.feature-box .box-content p{ margin:0; color:var(--muted); font-size:14px; line-height:1.4; }
+
+/* left / right variants: simply reverse grid order */
+.feature-box.box-right { grid-template-columns: 1fr 1fr; }
+.feature-box.box-right .box-image { order: 2; }
+.feature-box.box-right .box-content { order: 1; text-align: left; }
+
+/* smaller tweaks for visual emphasis */
+.feature-box .box-badge { display:inline-block; padding:6px 10px; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:var(--accent-contrast); font-weight:700; margin-bottom:8px; font-size:13px; }
+
+/* stack to single column on small screens (image top) */
+@media (max-width:860px){
+  .feature-box{ grid-template-columns: 1fr; }
+  .feature-box .box-image{ order: 0; min-height: 200px; }
+  .feature-box .box-content{ order: 1; }
+  .feature-box.box-right .box-image { order: 0; }
+}
+
+/* spacing below section */
+.features-alt + section, .features-alt + .card { margin-top: 18px; }
+
+
+.feature-box.box-right {
+    display: flex;
+    flex-direction: row;
+}
+
+.feature-box.box-right .box-image {
+    order: 1;
+}
+
+.feature-box.box-right .box-content {
+    order: 2;
+}
+
+
+.feature-box.box-left {
+    display: flex;
+    flex-direction: row;
+}
+
+.feature-box.box-left .box-image {
+    order: 2;
+}
+
+.feature-box.box-left .box-content {
+    order: 1;
+}
+
+</style>
+</head>
+<body>
+
+  <!-- NEW: Preloader overlay (will show until panel slider images are preloaded) -->
+  <div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite">
+    <div class="loading-box" role="dialog" aria-label="Loading images">
+      <div style="font-weight:800;margin-bottom:8px">Preparing images…</div>
+      <div style="color:#aab4c0;font-size:13px;margin-bottom:8px">Please wait while we load slider images.</div>
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="progress" aria-hidden="true"><div id="progressBar" class="progress-bar"></div></div>
+      <div id="progressText" style="font-size:13px;color:var(--muted)">0 / 0</div>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="container nav" style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <!-- Menu button added -->
+        <button id="openDrawerBtn" aria-controls="bottomDrawer" aria-expanded="false" aria-label="Open menu" class="btn btn-ghost" style="padding:6px 8px;">☰</button>
+        <a class="brand" href="#"><div class="logo">W</div><span>WaCrop Studio</span></a>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a class="link" href="#features">Features</a></li>
+          <li><a class="link" id="openPanelBtn" href="#steps">See how it works</a></li>
+          <li><a class="link" href="#faq">FAQ</a></li>
+          <li><a class="link" href="#resources">Resources</a></li>
+        </ul>
+      </nav>
+      <div class="nav-cta">
+      <a class="btn btn-ghost appear delay-1" href="#download">Download</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="top-shade" aria-hidden="true"></div>
+    <div class="container content">
+      <div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span class="badge appear">FREE Tool</span>
+          <span class="muted appear delay-1">No credit card required</span>
+        </div>
+        <h1 style="margin:0 0 8px" class="appear delay-1">WhatsApp DP Crop — Fit Your Profile Photos in Seconds</h1>
+        <p class="muted appear delay-2" style="max-width:58ch;margin:0 0 16px">Auto-crop to a perfect 1:1 square, resize to recommended sizes, and personalize with frames. 100% browser-based. Works on mobile and desktop.</p>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <a class="btn btn-primary appear delay-3" id="startBtnHero" href="#try">Start for free</a>
+          <a class="btn btn-ghost appear delay-3" id="openPanelBtnHero" href="#steps">See how it works</a>
+        </div>
+      </div>
+      <div class="panel appear delay-1" id="panel" aria-hidden="true">
+      <h3 style="margin:0 0 8px">Quick Specs</h3>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px">
+        <div><div class="kv">Standard size</div><strong>640 × 640</strong></div>
+        <div><div class="kv">Aspect Ratio</div><strong>1 : 1</strong></div>
+        <div><div class="kv">Formats</div><strong>JPG • PNG • WEBP</strong></div>
+      </div>
+
+      <!-- Slider root (fills panel width up to max) -->
+      <div style="margin-top:14px">
+        <div class="stage" id="panelStage" role="region" aria-roledescription="carousel" aria-label="Panel image slider">
+          <div class="status" id="panelStatus">autoplay</div>
+          <div class="track" id="panelTrack" aria-live="polite"></div>
+        </div>
+
+        <div class="controls-row" aria-hidden="false">
+          <button id="panelPrev" class="btn">⟨ Prev</button>
+          <div class="dots" id="panelDots" aria-hidden="false"></div>
+          <button id="panelNext" class="btn">Next ⟩</button>
+        </div>
+      </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Tile cutter section -->
+
+  <center><section id="tc_section" aria-hidden="true">
+    <div class="tc-wrap card pad appear delay-2" id="panel-area">
+      <h3 style="margin-top:0">Crop & Split — 3:2 → 3×2 tiles (demo stage)</h3>
+      <p class="muted" style="margin-top:6px">Click "Start for free" or "See how it works" to reveal this stage.</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+        <label class="btn btn-primary ui-show" for="fileInput" id="chooseLabel" style="display:inline-flex;cursor:pointer">📁 Choose image</label>
+        <input id="fileInput" type="file" accept="image/*" style="display:none">
+  
+        <button id="btnLoadStart" class="btn btn-primary ui-hidden" disabled>Open & Crop</button>
+        <button id="btnReset" class="btn btn-ghost ui-hidden" disabled>Reset</button>
+      </div>
+
+      <div id="panelDetails" style="margin-top:12px"><em>Image details will appear here after you choose a file.</em></div>
+
+      <div class="tc-stage" style="margin-top:12px">
+        <!-- responsive preview; height is adjusted via JS to match image aspect -->
+        <div class="tc-preview" id="tc_preview_wrap" aria-live="polite" style="display:none">
+          <div class="tc-preview-inner">
+            <img id="preview" alt="Stage preview will appear here" />
+          </div>
+        </div>
+
+<div style="display:flex; flex-direction:column; align-items:center; gap:15px; margin-top:15px;">
+
+  <!-- Top row -->
+<div id="modeButtonsWrap" style="display:flex; gap:15px; justify-content:center; width:100%;">
+  <button id="modeCrop" class="mode-btn active" title="Crop box mode">Crop box</button>
+  <button id="modeMove" class="mode-btn" title="Move image mode">Move image</button>
+</div>
+
+  <!-- Middle row -->
+  <div>
+    <button id="btnSplit" class="abtn abtn-primary" disabled>Make 6 Tiles</button>
+  </div>
+
+  <!-- Bottom row -->
+  <div>
+    <button id="btnDownloadAll" class="abtn abtn-ghost" disabled>Download All</button>
+  </div>
+
+</div>
+
+        <!-- NOTE: page tiles grid removed as requested -->
+      </div>
+    </div>
+  </section></center>
+  
+  <!-- ==================== NEW: Alternating 4 Boxes (image + description) ==================== -->
+  <section aria-labelledby="altBoxesTitle" class="features-alt">
+    <div class="container" style="padding:0;">
+      <h2 id="altBoxesTitle" class="section-title"><span class="kicker">New Option</span><br/>4 alternating boxes (image + description)</h2>
+    </div>
+
+    <!-- Box 1: image left, content right -->
+    <div class="feature-box box-left">
+      <div class="box-image" aria-hidden="false">
+        <img src="https://picsum.photos/id/1011/800/600" alt="Example image 1">
+      </div>
+      <div class="box-content">
+        <span class="box-badge">Option 1</span>
+        <h4>Smart Crop Preset</h4>
+        <p class="muted">Automatically select the best 1:1 area for WhatsApp DP — perfect for faces, portraits and logo-centric images. Quick adjustments available after auto-crop.</p>
+      </div>
+    </div>
+
+    <!-- Box 2: image right, content left -->
+    <div class="feature-box box-right">
+      <div class="box-image" aria-hidden="false">
+        <img src="https://picsum.photos/id/1025/800/600" alt="Example image 2">
+      </div>
+      <div class="box-content">
+        <span class="box-badge">Option 2</span>
+        <h4>Custom Frame & Border</h4>
+        <p class="muted">Choose oval or rounded frames, add colored borders and preview how your DP will look in-app before downloading the final PNG or JPG.</p>
+      </div>
+    </div>
+  </section>
+  <!-- ==================== END: Alternating Boxes ==================== -->
+
+  <!-- Modal overlay (grid + single) -->
+  <div id="tilePreviewModal" class="modal-overlay" role="dialog" aria-hidden="true">
+    <div class="modal-card" role="document" aria-live="polite" tabindex="-1">
+      <div class="panel">
+        <div class="preview-top">
+          <div class="preview-title">Tile Pack Preview</div>
+          <div class="preview-actions">
+            <button id="modalBack" class="resetbtn" style="display:none">← Back</button>
+            <button id="modalDownload" class="cropbtn" style="display:none">Download</button>
+            <button id="modalClose" class="resetbtn">Close</button>
+          </div>
+        </div><!-- grid -->
+        <div id="modalGrid" class="preview-grid" aria-hidden="true"></div>
+
+        <!-- single view -->
+        <div id="modalSingle" class="preview-single" aria-hidden="true">
+          <img id="modalSingleImg" src="" alt="Tile preview" draggable="false" />
+        </div>
+
+      <div class="hint">Grid: tap/click any tile to zoom. Single: pinch/wheel to zoom, drag to pan, double-click to reset.</div>
+        <center><button class="btn btn-primary" id="menuDownloadAll">
+          <div class="drawer-item"><strong class="drawer-title">Download all</strong></div>
+        </button></center>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- BOTTOM SHEET / DRAWER DOM -->
+  <div id="sheetOverlay" class="sheet-overlay" tabindex="-1" aria-hidden="true"></div>
+
+  <aside id="bottomDrawer" class="bottom-drawer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="App menu">
+    <div class="drawer-handle" aria-hidden="true">
+      <div class="drawer-bar" aria-hidden="true"></div>
+    </div>
+    <div class="drawer-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:800">Menu</div>
+          <div class="muted" style="font-size:13px">Quick actions & settings</div>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:8px;margin-top:10px;">
+        <button class="btn btn-ghost drawer-row" id="menuChoose">
+          <div class="drawer-item"><strong class="drawer-title">Choose image</strong><div class="drawer-sub">Open file picker</div></div>
+        </button>
+
+        <button class="btn btn-ghost drawer-row" id="menuOpenCrop">
+          <div class="drawer-item"><strong class="drawer-title">Open & Crop</strong><div class="drawer-sub">Initialize cropper</div></div>
+        </button>
+
+        <button class="btn btn-ghost drawer-row" id="menuMakeTiles">
+          <div class="drawer-item"><strong class="drawer-title">Make 6 Tiles</strong><div class="drawer-sub">Split current crop</div></div>
+        </button>
+
+        <button class="btn btn-ghost drawer-row" id="menuDownloadAll">
+          <div class="drawer-item"><strong class="drawer-title">Download all</strong><div class="drawer-sub">Save the tile pack</div></div>
+        </button>
+
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:8px 0">
+
+        <div class="drawer-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+          <div style="font-weight:700">Audio</div>
+          <div class="muted">Open audio settings from here (if available)</div>
+        </div>
+
+        <div style="height:8px"></div>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- features -->
+  <section id="features">
+    <div class="container">
+      <h2 class="section-title"><span class="kicker">Tools</span><br/>Cropper features that save time</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <div class="card pad appear"><h4 style="margin:0 0 6px">Crop</h4><p class="muted" style="margin:0">Auto-crop or pick presets like 1:1. Drag handles for pixel-precise framing.</p></div>
+        <div class="card pad appear delay-1"><h4 style="margin:0 0 6px">Resize</h4><p class="muted" style="margin:0">Ready-made canvas sizes or custom dimensions.</p></div>
+        <div class="card pad appear delay-2"><h4 style="margin:0 0 6px">Frames</h4><p class="muted" style="margin:0">Oval/rect frames to personalize your DP.</p></div>
+      </div>
+    </div>
+  </section>
+
+
+  <footer style="padding:60px 0 30px;border-top:1px solid var(--border);background:#0a0c0f">
+    <div class="container" style="display:flex;justify-content:space-between;align-items:center">
+      <small class="muted">© <span id="year"></span> WaCrop Studio</small>
+      <a class="btn btn-ghost" href="#top">↑ Back to top</a>
+    </div>
+  </footer>
+  
+<!-- ==================== NEW: Slider + Preloader Script (full updated) ==================== -->
+<script>
+/*
+  Preloader + Slider bootstrap
+  - Gathers ALL probable media URLs from the page (images, audio, video, <source>, inline background-image, data-src)
+  - Also ensures the IMAGES array (slider sources) included
+  - Preloads each resource with per-resource timeouts and reports progress to the UI
+  - Falls back gracefully if resources are blocked/cross-origin
+  - Builds slider using provided IMAGES constant (keeps ordering predictable)
+*/
+
+const IMAGES = [
+  "https://picsum.photos/id/1015/1600/900",
+  "https://picsum.photos/id/1016/1600/900",
+  "https://picsum.photos/id/1018/1600/900",
+  "https://picsum.photos/id/1020/1600/900",
+  "https://picsum.photos/id/1024/1600/900"
+];
+
+/* Small helper for safely querying elements */
+function $id(id){ return document.getElementById(id); 
+  
+}
+
+/* APPEAR DELAY HELPER (keeps existing behaviour) */
+function revealAppearAll(opts = {}){
+  const base = opts.base || 60;
+  const minDelay = opts.minDelay || 20;
+  const els = Array.from(document.querySelectorAll('.appear'));
+  els.forEach((el, i) => {
+    if(el.classList.contains('show')) return;
+    const ds = el.dataset && el.dataset.delay;
+    let delay = null;
+    if(ds !== undefined && ds !== '') {
+      const n = Number(ds);
+      if(!Number.isNaN(n)) delay = Math.max(0, n);
+    }
+    if(delay === null){
+      const cls = Array.from(el.classList).find(c => /^delay-(\d+)$/.test(c));
+      if(cls){
+        const m = cls.match(/^delay-(\d+)$/);
+        if(m) delay = base * Number(m[1]);
+      }
+    }
+    if(delay === null) delay = base * i + minDelay;
+    setTimeout(()=> el.classList.add('show'), delay);
+  });
+}
+
+/* --------- MEDIA GATHERING --------- */
+function gatherAllMediaUrls(extra = []){
+  const urls = new Set();
+
+  // include explicit known slider images first (keeps predictable order)
+  (extra || []).forEach(u => u && urls.add(u));
+
+  // <img src>, <audio src>, <video src>, <source src>
+  document.querySelectorAll('img[src], audio[src], video[src], source[src]').forEach(el=>{
+    const s = el.getAttribute('src');
+    if(s) urls.add(s);
+  });
+
+  // data-src / data-bg / data-srcset
+  document.querySelectorAll('[data-src],[data-bg],[data-srcset]').forEach(el=>{
+    ['data-src','data-bg','data-srcset'].forEach(attr=>{
+      const s = el.getAttribute(attr);
+      if(s) {
+        // if srcset-like with commas, try split by commas conservatively
+        s.split(',').map(x => x.trim()).forEach(part => {
+          if(part) urls.add(part.split(' ')[0]);
+        });
+      }
+    });
+  });
+
+  // <picture> and <img srcset> - try to capture candidate urls
+  document.querySelectorAll('img[srcset]').forEach(img=>{
+    const ss = img.getAttribute('srcset') || '';
+    ss.split(',').map(s=>s.trim()).forEach(p=>{
+      const url = p.split(' ')[0];
+      if(url) urls.add(url);
+    });
+  });
+
+  // inline style background-image: url(...)
+  document.querySelectorAll('*[style]').forEach(el=>{
+    const style = el.getAttribute('style') || '';
+    const re = /url\((['"]?)(.+?)\1\)/g;
+    let m;
+    while((m = re.exec(style)) !== null){
+      if(m[2]) urls.add(m[2]);
+    }
+  });
+
+  // computed style backgrounds (cover css background images from stylesheets)
+  document.querySelectorAll('*').forEach(el=>{
+    try{
+      const cs = getComputedStyle(el);
+      if(!cs) return;
+      const bg = cs.backgroundImage;
+      if(bg && bg !== 'none'){
+        const re = /url\((['"]?)(.+?)\1\)/g;
+        let m;
+        while((m = re.exec(bg)) !== null){
+          if(m[2]) urls.add(m[2]);
+        }
+      }
+    }catch(e){}
+  });
+
+  // return Array preserving insertion order (Set preserves insertion order)
+  return Array.from(urls);}
+
+/* rudimentary type inference */
+function inferTypeFromUrl(url){
+  if(!url || typeof url !== 'string') return 'unknown';
+  const path = url.split('?')[0].toLowerCase();
+  if(path.match(/\.(mp4|webm|ogv|mov|mkv|avi)(#.*)?$/)) return 'video';
+  if(path.match(/\.(mp3|wav|aac|m4a|oga|ogg)(#.*)?$/)) return 'audio';
+  if(path.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(#.*)?$/)) return 'image';
+  // assume image if unknown (safe default for page assets)
+  return 'image';}
+
+/* --------- PRELOAD with progress callback --------- */
+function preloadAllMedia(urls, opts = {}){
+  const timeout = typeof opts.timeout === 'number' ? opts.timeout : 12000;
+  const perResourceTimeout = typeof opts.perResourceTimeout === 'number' ? opts.perResourceTimeout : 9000;
+  const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : ()=>{};
+  return new Promise((resolve) => {
+    const total = urls.length;
+    if(total === 0){
+      onProgress({loaded:0, failed:0, total:0});
+      return resolve([]);
+    }
+    
+    let loaded = 0, failed = 0;
+    const results = new Array(total).fill(null);
+    let finished = false;
+    const timers = [];
+
+    function checkDone(){
+      if(finished) return;
+      if(loaded + failed === total){
+        finished = true;
+        cleanup();
+        onProgress({loaded, failed, total});
+        resolve(results);
+      }
+    }
+    function cleanup(){
+      timers.forEach(t => clearTimeout(t));
+      timers.length = 0;
+    }
+
+    urls.forEach((url, i) => {
+      const type = inferTypeFromUrl(url);
+      let done = false;
+      const finishSuccess = () => { if(done) return; done = true; loaded++; results[i] = url; onProgress({loaded, failed, total, currentUrl:url, type}); checkDone(); };
+      const finishFail = () => { if(done) return; done = true; failed++; results[i] = null; onProgress({loaded, failed, total, currentUrl:url, type, failed:true}); checkDone(); };
+
+      try{
+        if(type === 'image'){
+          const img = new Image();
+          // attempt to avoid cross origin blocking, but cannot control server headers
+          img.crossOrigin = 'anonymous';
+          img.onload = finishSuccess;
+          img.onerror = finishFail;
+          img.src = url;
+        } else if(type === 'video'){
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          // some browsers fire loadedmetadata/canplaythrough differently depending on CORS. We treat loadedmetadata as success.
+          const onOk = ()=> finishSuccess();
+          const onFail = ()=> finishFail();
+          v.onloadedmetadata = onOk;
+          v.oncanplaythrough = onOk;
+          v.onerror = onFail;
+          // try setting src
+          try{ v.src = url; v.load(); }catch(e){ onFail(); }
+        } else if(type === 'audio'){
+          const a = document.createElement('audio');
+          a.preload = 'metadata';
+          const onOk = ()=> finishSuccess();
+          const onFail = ()=> finishFail();
+          a.onloadedmetadata = onOk;
+          a.onerror = onFail;
+          try{ a.src = url; a.load(); }catch(e){ onFail(); }
+        } else {
+          // fallback to image
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = finishSuccess;
+          img.onerror = finishFail;
+          img.src = url;
+        }
+
+        // resource-level safety timer (in case events don't fire)
+        const rto = setTimeout(()=> {
+          if(done) return;
+          // mark as success (best effort) to avoid blocking UX; but increment failed if it truly timed out
+          // choose: treat as failed but continue
+          failed++;
+          results[i] = null;
+          onProgress({loaded, failed, total, currentUrl:url, type, timedOut:true});
+          checkDone();
+        }, perResourceTimeout);
+        timers.push(rto);
+
+      }catch(e){
+        failed++;
+        results[i] = null;
+        onProgress({loaded, failed, total, currentUrl:url, type, error:e});
+        checkDone();
+      }
+    });
+
+    // global timeout: if not finished by timeout, resolve anyway
+    const global = setTimeout(()=> {
+      if(finished) return;
+      finished = true;
+      cleanup();
+      onProgress({loaded, failed, total, timedOut:true});
+      resolve(results);
+    }, timeout);
+    timers.push(global);
+  });
+}
+
+/* --------- SLIDER: reuse original slider build code but with safe guards --------- */
+(function(){
+  const overlay = $id('loadingOverlay');
+  const progressBar = $id('progressBar');
+  const progressText = $id('progressText');
+  const loadingSub = $id('loadingSub');
+
+  const stage = $id('panelStage');
+  const track = $id('panelTrack');
+  const dotsEl = $id('panelDots');
+  const statusEl = $id('panelStatus');
+  const prevBtn = $id('panelPrev');
+  const nextBtn = $id('panelNext');
+
+  // fallback safe defaults
+  const safeStage = stage || document.createElement('div');
+  const safeTrack = track || document.createElement('div');
+  const safeDots = dotsEl || document.createElement('div');
+
+  let slideWidth = 0;
+  let index = 0;
+  const slidesCount = IMAGES.length || 0;
+  let autoplayTimer = null, resumeTimeout = null, transFallbackTimer = null;
+  let isDragging = false, pointerIdActive = null, startX=0, lastX=0, deltaX=0, startTranslate=0, startTime=0;
+  const AUTOPLAY_DELAY = 3000, TRANSITION_MS = 360, DRAG_THRESHOLD = 0.15, FLICK_VELOCITY = 0.4;
+
+  function setTransition(on){ if(track) track.style.transition = on ? `transform ${TRANSITION_MS}ms cubic-bezier(.2,.9,.2,1)` : 'none'; }
+  function setTranslateX(x){ if(track) track.style.transform = `translateX(${x}px)`; }
+  function getTranslateX(){
+    if(!track) return 0;
+    const m = getComputedStyle(track).transform;
+    if(m && m !== 'none'){
+      const vals = m.match(/matrix.*\((.+)\)/);
+      if(vals && vals[1]){ const v = vals[1].split(', '); return parseFloat(v[4]) || 0; }
+    }
+    return 0;
+  }
+
+  function updateDots(){ if(!dotsEl) return; dotsEl.querySelectorAll('.dot').forEach(d=>d.classList.remove('active')); const dot = dotsEl.querySelector(`.dot[data-index="${index}"]`); if(dot) dot.classList.add('active'); }
+
+  function recalc(){
+    if(!stage || !track) return;
+    slideWidth = stage.clientWidth || 0;
+    Array.from(track.children).forEach(ch => ch.style.width = slideWidth + 'px');
+    track.style.width = (slideWidth * track.children.length) + 'px';
+  }
+
+  function buildSlider(urls){
+    if(!track || !dotsEl) return;
+    track.innerHTML = '';
+    dotsEl.innerHTML = '';
+
+    urls.forEach((src,i)=>{
+      const s = document.createElement('div'); s.className='slide';
+      const img = document.createElement('img'); img.alt = `Slide ${i+1}`;
+      if(src) img.src = src;
+      s.appendChild(img); track.appendChild(s);
+
+      const dot = document.createElement('div'); dot.className='dot'; dot.dataset.index = i;
+      dot.addEventListener('click', ()=>{ pauseAutoplay(); goTo(i); resumeAutoplayDelayed(700); });
+      dotsEl.appendChild(dot);
+    });
+
+    // clones for seamless loop (only if there is at least one slide)
+    if(track.children.length > 0){
+      const firstClone = track.children[0].cloneNode(true);
+      const lastClone = track.children[track.children.length-1].cloneNode(true);
+      track.insertBefore(lastClone, track.firstChild);
+      track.appendChild(firstClone);
+    }
+
+    recalc();
+    setTransition(false);
+    setTranslateX(-slideWidth * (index + 1));
+    updateDots();
+    // subtle accessibility label update
+    if(statusEl) statusEl.setAttribute('aria-live','polite');
+  }
+
+  function withTransitionTo(x,onDone){
+    clearTimeout(transFallbackTimer);
+    setTransition(true);
+    setTranslateX(x);
+    let called = false;
+    const done = ()=>{ if(called) return; called = true; cleanup(); try{ onDone && onDone(); }catch(e){} };
+    const cleanup = ()=>{ track && track.removeEventListener('transitionend', handler); clearTimeout(transFallbackTimer); };
+    const handler = (e)=>{ if(e && e.target===track) done(); };
+    track && track.addEventListener('transitionend', handler, {once:true});
+    transFallbackTimer = setTimeout(done, TRANSITION_MS + 120);
+  }
+
+  function goTo(target){
+    if(slidesCount === 0) return;
+    index = ((target % slidesCount) + slidesCount) % slidesCount;
+    const targetX = -slideWidth * (index + 1);
+    withTransitionTo(targetX, ()=>{ setTransition(false); updateDots(); });
+  }
+
+  function startAutoplay(){ stopAutoplay(); if(slidesCount === 0) return; autoplayTimer = setInterval(()=> goTo(index+1), AUTOPLAY_DELAY); if(statusEl) statusEl.textContent = 'autoplay'; }
+  function stopAutoplay(){ if(autoplayTimer){ clearInterval(autoplayTimer); autoplayTimer = null; } if(statusEl) statusEl.textContent = 'paused'; }
+  function pauseAutoplay(){ stopAutoplay(); clearTimeout(resumeTimeout); }
+  function resumeAutoplayDelayed(ms=700){ clearTimeout(resumeTimeout); resumeTimeout = setTimeout(()=> { if(!isDragging) startAutoplay(); }, ms); }
+
+  // pointer handlers (safe guards for missing elements)
+  function onPointerDown(e){
+    if(!track || !stage) return;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    isDragging = true; pointerIdActive = e.pointerId;
+    try{ track.setPointerCapture && track.setPointerCapture(pointerIdActive); }catch(_){}
+    const curX = getTranslateX(); setTransition(false);
+    startX = e.clientX; lastX = startX; deltaX = 0; startTranslate = curX; startTime = performance.now();
+    stage.classList && stage.classList.add('dragging'); pauseAutoplay(); e.preventDefault && e.preventDefault();
+  }
+  function onPointerMove(e){
+    if(!isDragging || e.pointerId !== pointerIdActive) return;
+    deltaX = e.clientX - startX; lastX = e.clientX; setTranslateX(startTranslate + deltaX);
+  }
+  function endDrag(commit=true){
+    if(!isDragging) return; isDragging = false; stage.classList && stage.classList.remove('dragging');
+    try{ track.releasePointerCapture && track.releasePointerCapture(pointerIdActive);}catch(_){}
+    pointerIdActive = null;
+    if(!commit){ withTransitionTo(-slideWidth*(index+1), ()=> updateDots()); resumeAutoplayDelayed(700); return; }
+    const dt = Math.max(1, performance.now() - startTime); const vx = (lastX - startX) / dt;
+    const fraction = slideWidth ? (Math.abs(deltaX) / slideWidth) : 0; let move = 0;
+    if(fraction > DRAG_THRESHOLD || Math.abs(vx) > FLICK_VELOCITY) move = (deltaX < 0) ? 1 : -1;
+    goTo(index + move);
+    resumeAutoplayDelayed(900);
+  }
+
+  // safe addEventListeners only if elements exist
+  prevBtn && prevBtn.addEventListener('click', ()=>{ pauseAutoplay(); goTo(index-1); resumeAutoplayDelayed(700); });
+  nextBtn && nextBtn.addEventListener('click', ()=>{ pauseAutoplay(); goTo(index+1); resumeAutoplayDelayed(700); });
+  window.addEventListener('pointerup', ()=>{ if(isDragging) endDrag(true); });
+  window.addEventListener('pointercancel', ()=>{ if(isDragging) endDrag(false); });
+  window.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ pauseAutoplay(); goTo(index-1); resumeAutoplayDelayed(700);} if(e.key==='ArrowRight'){ pauseAutoplay(); goTo(index+1); resumeAutoplayDelayed(700);} });
+  window.addEventListener('visibilitychange', ()=>{ if(document.hidden) pauseAutoplay(); else resumeAutoplayDelayed(300); });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ const prevIdx = index; recalc(); setTransition(false); setTranslateX(-slideWidth * (prevIdx + 1)); }, 120); });
+
+  // wrap up: gather media, preload them, then build slider & reveal UI
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    try{ overlay && overlay.classList.remove('hidden'); }catch(e){}
+
+    // gather urls: include IMAGES array plus page media
+    const found = gatherAllMediaUrls(IMAGES);
+    const totalFound = found.length;
+
+    // Update subtitle for clarity
+    if(loadingSub){
+      loadingSub.textContent = totalFound > 0 ? `Loading ${totalFound} resource${totalFound>1?'s':''} (images, audio, video)...` : 'Preparing media…';
+    }
+
+    function onProgress(p){
+      // p: {loaded, failed, total, currentUrl, type, timedOut}
+      const n = Math.min(p.total || 0, (p.loaded || 0) + (p.failed || 0));
+      const pct = p.total > 0 ? Math.round((n / p.total) * 100) : 100;
+      if(progressBar) progressBar.style.width = pct + '%';
+      if(progressText){
+        progressText.textContent = `${p.loaded || 0} / ${p.total || 0} loaded · ${p.failed || 0} failed`;
+      }
+      // show short current url trimmed in subtitle (avoid overflowing)
+      if(loadingSub && p.currentUrl){
+        const u = String(p.currentUrl);
+        loadingSub.textContent = `Loading ${p.type || 'resource'} — ${u.length > 60 ? '…' + u.slice(-60) : u}`;
+      }
+    }
+
+    // If there are no found page media but IMAGES exist, still preload the IMAGES (explicit)
+    const toPreload = found.length > 0 ? found : IMAGES.slice();
+
+    // start preloading
+    const results = await preloadAllMedia(toPreload, { timeout: 14000, perResourceTimeout: 9000, onProgress });
+
+    // After preload completes, we still build slider using the IMAGES constant (preserve order)
+    // But we can substitute any successfully preloaded versions (results) into slider if desired.
+    // Build slider with IMAGES (predictable), but ensure images are available
+    try{
+      buildSlider(IMAGES);
+    }catch(e){
+      // fallback: build with whatever preloaded succeeded
+      try{ buildSlider(results.filter(Boolean)); }catch(_){}
+    }
+
+    // small delay for smooth UI transition
+    setTimeout(()=> {
+      if(overlay){
+        overlay.classList.add('hidden');
+        // ensure other scripts waiting for preloader can respond
+        try { document.dispatchEvent(new CustomEvent('preloader:dismissed')); } catch(e){}
+      } else {
+        try { document.dispatchEvent(new CustomEvent('preloader:dismissed')); } catch(e){}
+      }
+      // reveal appear elements after preloader dismissed
+      try{ revealAppearAll({ base: 60, minDelay: 20 }); }catch(e){}
+    }, 260);
+
+    // start autoplay & wire pointer events after build
+    startAutoplay();
+    if(stage){
+      stage.addEventListener('pointerdown', onPointerDown, {passive:false});
+      stage.addEventListener('pointermove', onPointerMove, {passive:false});
+      stage.addEventListener('pointerup', ()=>{ if(isDragging) endDrag(true); });
+      stage.addEventListener('pointercancel', ()=>{ if(isDragging) endDrag(false); });
+    }
+    updateDots();
+  });
+})();
+</script>
+
+<!-- Cropper JS -->
+<script src="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.js"></script>
+
+<!-- Helper: escapeHtml available globally -->
+<script>
+  function escapeHtml(s){
+    if(s === undefined || s === null) return '';
+    return String(s)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
+</script>
+
+<!-- Tile-cutter + viewer script (updated, full version with animated close) -->
+<script>
+(function(){
+  const $id = id => document.getElementById(id);
+
+  const fileInput      = $id('fileInput');
+  const btnLoadStart   = $id('btnLoadStart');
+  const btnReset       = $id('btnReset');
+  const btnSplit       = $id('btnSplit');
+  const btnDownloadAll = $id('btnDownloadAll');
+  const preview        = $id('preview');
+  const panel          = $id('panel');
+  const chooseLabel    = $id('chooseLabel');
+  const panelDetails   = ($id('panel-area') && $id('panel-area').querySelector('#panelDetails')) || $id('panelDetails');
+
+  const modalOverlay   = $id('tilePreviewModal');
+  const modalCardEl    = modalOverlay ? modalOverlay.querySelector('.modal-card') : null;
+  const modalGrid      = $id('modalGrid');
+  const modalSingle    = $id('modalSingle');
+  const modalSingleImg = $id('modalSingleImg');
+  const modalClose     = $id('modalClose');
+  const modalBack      = $id('modalBack');
+  const modalDownload  = $id('modalDownload');
+
+  // new controls:
+  const modeCropBtn = $id('modeCrop');
+  const modeMoveBtn = $id('modeMove');
+  const zoomRange   = $id('zoomRange');
+  const zoomInBtn   = $id('zoomIn');
+  const zoomOutBtn  = $id('zoomOut');
+
+  let cropper = null;
+  let currentFileName = 'image';
+  let generatedTiles = [];
+  const EXTRA = 8;
+
+  function showBtn(el){
+    if(!el) return;
+    el.classList.remove('ui-hidden');
+    el.classList.add('ui-show','appear');
+    el.style.display = 'inline-flex';
+    setTimeout(()=> el.classList.add('show'), 20);
+  }
+  function hideBtn(el){
+    if(!el) return;
+    el.classList.remove('show','ui-show','appear');
+    el.classList.add('ui-hidden');
+    el.style.display = '';
+  }
+
+  window.showBtn = showBtn;
+  window.hideBtn = hideBtn;
+
+  if(fileInput){
+    fileInput.addEventListener('click', function(){ this.value = ''; });
+  }
+
+  const openPanelBtn = $id('openPanelBtn');
+  openPanelBtn && openPanelBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    panel && panel.removeAttribute('aria-hidden');
+    panel && panel.scrollIntoView({behavior:'smooth', block:'center'});
+    const tc = $id('tc_section');
+    if(tc){ tc.classList.add('tc-visible'); tc.setAttribute('aria-hidden','false'); }
+  });
+
+  fileInput && fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    currentFileName = (f.name || 'image').replace(/\.[^.]+$/, '');
+    if(btnLoadStart) { btnLoadStart.disabled = false; showBtn(btnLoadStart); }
+    if(btnReset) { btnReset.disabled = true; hideBtn(btnReset); }
+    // keep Split hidden until image loaded/processed - but btnSplit will still fallback if clicked
+    if(btnSplit) { btnSplit.disabled = true; hideBtn(btnSplit); }
+    if(btnDownloadAll) { btnDownloadAll.disabled = true; hideBtn(btnDownloadAll); }
+    updatePanelDetailsFromFile(f);
+  });
+
+  function updatePanelDetailsFromFile(file){
+    const name = file.name || '—';
+    const sizeKB = (file.size/1024);
+    const type = file.type || '—';
+    if(!panelDetails) return;
+    panelDetails.innerHTML = `
+      <table>
+        <tr><th>Name</th><td>${escapeHtml(name)}</td></tr>
+        <tr><th>Size</th><td>${sizeKB.toFixed(1)} KB</td></tr>
+        <tr><th>Type</th><td>${escapeHtml(type)}</td></tr>
+        <tr><th>Original dims</th><td>loading…</td></tr>
+        <tr><th>Used (resized)</th><td>—</td></tr>
+      </table>
+    `;
+    panelDetails.classList.add('appear');
+    setTimeout(()=> panelDetails.classList.add('show'), 10);
+
+    const objUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const table = panelDetails.querySelector('table');
+      if(!table) return;
+      table.rows[3].cells[1].textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+      URL.revokeObjectURL(objUrl);
+    };
+    img.src = objUrl;
+  }
+
+  function updatePanelDetailsResized(originalW, originalH, resizedW, resizedH){
+    if(!panelDetails) return;
+    const table = panelDetails.querySelector('table');
+    if(!table) return;
+    table.rows[3].cells[1].textContent = `${originalW} × ${originalH}px`;
+    table.rows[4].cells[1].textContent = `${resizedW} × ${resizedH}px`;
+  }
+
+  /* adjust stage height so image fits nicely */
+  function adjustPreviewHeight(){
+    const wrap = document.getElementById('tc_preview_wrap');
+    if(!wrap || !preview) return;
+    const parentWidth = Math.min(wrap.parentElement.clientWidth, wrap.clientWidth || wrap.parentElement.clientWidth);
+    const maxH = Math.max(140, Math.round(window.innerHeight * 0.66));
+    const naturalW = preview.naturalWidth || preview.width || 1;
+    const naturalH = preview.naturalHeight || preview.height || 1;
+    const imgAspect = (naturalW / naturalH) || 1;
+
+    // prefer stage sized to *image aspect ratio* so the preview can fit exactly
+    let desiredH = Math.min(maxH, Math.round(parentWidth / imgAspect));
+    desiredH = Math.max(120, desiredH);
+    wrap.style.height = desiredH + 'px';
+  }
+
+  function debounce(fn, wait=80){
+    let t;
+    return function(...args){ clearTimeout(t); t = setTimeout(()=> fn.apply(this,args), wait); };
+  }
+  const debouncedAdjust = debounce(adjustPreviewHeight, 80);
+  window.addEventListener('resize', debouncedAdjust);
+
+/* ------- Load & init Cropper (attach onload before src) ------- */
+btnLoadStart && btnLoadStart.addEventListener('click', () => {
+  const f = fileInput.files && fileInput.files[0];
+  if(!f){ alert('Please choose an image first'); return; }
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const TARGET = 1200;
+      const factor = Math.min(1, TARGET / img.width);
+      const w = Math.max(1, Math.round(img.width * factor));
+      const h = Math.max(1, Math.round(img.height * factor));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = c.toDataURL('image/jpeg', 0.92);
+
+      updatePanelDetailsResized(img.width, img.height, w, h);
+
+      preview.onload = () => {
+        preview.classList.add('visible');
+        adjustPreviewHeight();
+
+        // destroy existing cropper if any
+        if(cropper) try{ cropper.destroy(); }catch(e){}
+        preview.style.width = 'auto';
+        preview.style.height = 'auto';
+        preview.style.maxHeight = '100%';
+        preview.style.objectFit = 'contain';
+
+        cropper = new Cropper(preview, {
+          viewMode: 2,
+          dragMode: 'crop',
+          autoCropArea: 0.95,
+          aspectRatio: 3/2,
+          background: false,
+          guides: false,
+          center: true,
+          highlight: false,
+          modal: true,
+          movable: true,
+          zoomable: true,
+          zoomOnTouch: true,
+          zoomOnWheel: true,
+          wheelZoomRatio: 0.2,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+          responsive: true,
+          ready(){
+            try{ this.setDragMode && this.setDragMode('crop'); }catch(e){}
+            // center the crop box
+            try{
+              const container = this.getContainerData();
+              const canvas = this.getCanvasData();
+              const cw = container.width;
+              const ch = container.height;
+              let boxW = Math.min(cw * 0.94, cw);
+              let boxH = Math.round(boxW / (3/2));
+              if(boxH > ch){ boxH = ch * 0.94; boxW = Math.round(boxH * (3/2)); }
+              const scale = canvas.width / container.width;
+              const leftCanvas = canvas.left + ((cw - boxW) / 2) * scale;
+              const topCanvas = canvas.top + ((ch - boxH) / 2) * scale;
+              this.setCropBoxData({ left: leftCanvas, top: topCanvas, width: boxW * scale, height: boxH * scale });
+            }catch(err){
+              console.warn('crop fit failed', err);
+            }
+
+            if(zoomRange){ zoomRange.value = '0'; lastZoomVal = 0; }
+          }
+        });
+
+        // clamp canvas after interactions
+        function clampCanvasToContainer(){
+          if(!cropper) return;
+          try{
+            const container = cropper.getContainerData();
+            const canvasData = cropper.getCanvasData();
+            let left = canvasData.left;
+            let top = canvasData.top;
+            const right = left + canvasData.width;
+            const bottom = top + canvasData.height;
+
+            if(canvasData.width <= container.width){
+              left = Math.round((container.width - canvasData.width) / 2);
+            } else {
+              if(left > 0) left = 0;
+              if(right < container.width) left = container.width - canvasData.width;
+            }
+            if(canvasData.height <= container.height){
+              top = Math.round((container.height - canvasData.height) / 2);
+            } else {
+              if(top > 0) top = 0;
+              if(bottom < container.height) top = container.height - canvasData.height;
+            }
+            if(left !== canvasData.left || top !== canvasData.top){
+              cropper.setCanvasData({ left: left, top: top });
+            }
+          }catch(e){}
+        }
+
+        preview.addEventListener('cropend', clampCanvasToContainer);
+        preview.addEventListener('cropmove', clampCanvasToContainer);
+        preview.addEventListener('zoom', clampCanvasToContainer);
+        preview.addEventListener('pointerup', clampCanvasToContainer);
+        preview.addEventListener('pointercancel', clampCanvasToContainer);
+
+        // enable buttons
+        if(btnLoadStart){ btnLoadStart.disabled = true; hideBtn(btnLoadStart); }
+        if(btnReset){ btnReset.disabled = false; showBtn(btnReset); }
+        if(btnSplit){ btnSplit.disabled = false; showBtn(btnSplit); }
+        if(modeCrop){ modeCrop.disabled = false; showBtn(modeCrop); }
+        if(modeMove){ modeMove.disabled = false; showBtn(modeMove); }
+
+        // 🔹 Show Crop/Move button group
+        const modeWrap = document.getElementById('modeButtonsWrap');
+        if(modeWrap) modeWrap.style.display = 'flex';
+
+        const wrap = document.getElementById('tc_preview_wrap');
+        if(wrap){ wrap.style.display = 'flex'; setTimeout(()=> preview.classList.add('visible'), 20); }
+      };
+
+      preview.src = dataUrl;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(f);
+});
+
+/* ------- Reset ------- */
+function resetAll(){
+  if(cropper){ 
+    try{ 
+      cropper.reset(); 
+      cropper.destroy(); 
+    }catch(e){} 
+    cropper = null; 
+  }
+  preview.removeAttribute('src');
+  preview.classList.remove('visible');
+  const wrap = document.getElementById('tc_preview_wrap');
+  if(wrap) wrap.style.display = 'none';
+
+  if(modalOverlay && modalOverlay.classList.contains('show')){
+    closeModalAnimated();
+  }
+
+  generatedTiles = [];
+
+  [btnLoadStart, btnReset, btnSplit, btnDownloadAll].forEach(el=>{
+    if(!el) return;
+    el.disabled = true;
+    hideBtn(el);
+  });
+
+  if(panelDetails) 
+    panelDetails.innerHTML = `<em>Image details will appear here after you choose a file.</em>`;
+
+  const choose = document.querySelector('label[for="fileInput"]');
+  if(choose){ 
+    choose.classList.add('ui-show'); 
+    choose.style.display = 'inline-flex'; 
+  }
+
+  // 🔹 Crop/Move mode buttons hide
+  const modeWrap = document.getElementById('modeButtonsWrap');
+  if(modeWrap) modeWrap.style.display = 'none';
+}
+
+btnReset && btnReset.addEventListener('click', ()=>{
+  resetAll();
+});
+
+  /* ------- Insets mapping (EXTRA px) ------- */
+function getInsetsFor(row, col) {
+  // Tile numbers:
+  // 1 2 3
+  // 4 5 6
+  const n = row * 3 + col + 1;
+  let L = 0, R = 0, T = 0, B = 0;
+
+  if (n === 1) { R = EXTRA; B = EXTRA; }
+  if (n === 2) { L = EXTRA; R = EXTRA; B = EXTRA; }
+  if (n === 3) { L = EXTRA; B = EXTRA; }
+  if (n === 4) { R = EXTRA; T = EXTRA; }
+  if (n === 5) { L = EXTRA; R = EXTRA; T = EXTRA; }
+  if (n === 6) { L = EXTRA; T = EXTRA; }
+
+  return { L, R, T, B };}
+
+  /* ------- Internal splitting code used by both cropper and fallback ------- */
+  async function splitCanvasToTiles(sourceCanvasOrImage, namePrefix){
+    // sourceCanvasOrImage: HTMLCanvasElement or HTMLImageElement
+    const TARGET = 1024;
+    // draw source into a canvas scaled to TARGET width
+    const tmp = document.createElement('canvas');
+    const sW = sourceCanvasOrImage.width || sourceCanvasOrImage.naturalWidth;
+    const sH = sourceCanvasOrImage.height || sourceCanvasOrImage.naturalHeight;
+    const scale = TARGET / Math.max(1, sW);
+    tmp.width = TARGET;
+    tmp.height = Math.max(1, Math.round(sH * scale));
+    const tctx = tmp.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    if(sourceCanvasOrImage.getContext){ // canvas
+      tctx.drawImage(sourceCanvasOrImage, 0, 0, tmp.width, tmp.height);
+    } else {
+      tctx.drawImage(sourceCanvasOrImage, 0, 0, tmp.width, tmp.height);
+    }
+
+    const sw = tmp.width, sh = tmp.height, cols = 3, rows = 2;
+    const tileW = Math.floor(sw / cols), tileH = Math.floor(sh / rows);
+    const tiles = [];
+
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const baseX = c * tileW;
+        const baseY = r * tileH;
+        const insets = getInsetsFor(r,c);
+        let sX = baseX + insets.L;
+        let sY = baseY + insets.T;
+        let sWslice = tileW - (insets.L + insets.R);
+        let sHslice = tileH - (insets.T + insets.B);
+
+        if(sX < 0){ sWslice += sX; sX = 0; }
+        if(sY < 0){ sHslice += sY; sY = 0; }
+        if(sX + sWslice > sw) sWslice = sw - sX;
+        if(sY + sHslice > sh) sHslice = sh - sY;
+        sWslice = Math.max(1, Math.floor(sWslice));
+        sHslice = Math.max(1, Math.floor(sHslice));
+
+        const cv = document.createElement('canvas'); cv.width = tileW; cv.height = tileH;
+        const ct = cv.getContext('2d');
+        ct.imageSmoothingEnabled = true;
+        ct.imageSmoothingQuality = 'high';
+        ct.drawImage(tmp, sX, sY, sWslice, sHslice, 0, 0, tileW, tileH);
+
+        const url = cv.toDataURL('image/png');
+        const tileName = `${namePrefix}_tile_${r+1}_${c+1}.png`;
+        tiles.push({url, name: tileName});
+      }
+    }
+
+    return tiles}
+
+  /* ------- Split into 3x2 tiles (btn handler) ------- */
+  btnSplit && btnSplit.addEventListener('click', async () => {
+    // If cropper available use it; otherwise try fallback using preview.src image
+    if(cropper){
+      try{
+        const cropped = cropper.getCroppedCanvas({ imageSmoothingEnabled:true, imageSmoothingQuality:'high' });
+        generatedTiles = await splitCanvasToTiles(cropped, currentFileName);
+      }catch(err){
+        console.error('cropper split failed:', err);
+        alert('Failed to split from cropper. Trying fallback...');
+        generatedTiles = [];
+      }
+    }
+
+    if((!generatedTiles || generatedTiles.length === 0) && preview && preview.src){
+      // fallback: load preview image into Image object
+      try{
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((res, rej)=>{
+          img.onload = ()=> res();
+          img.onerror = (e)=> rej(e);
+          img.src = preview.src;
+        });
+        generatedTiles = await splitCanvasToTiles(img, currentFileName);
+      }catch(err){
+        console.error('fallback split failed', err);
+        alert('Could not generate tiles. Make sure the image is loaded and try again.');
+        return;
+      }
+    }
+
+    if(!generatedTiles || generatedTiles.length === 0){
+      alert('No tiles were generated.');
+      return;
+    }
+
+    // enable download all
+    if(btnDownloadAll){ btnDownloadAll.disabled = false; showBtn(btnDownloadAll); }
+
+    // open modal centered with grid (and animate tiles AFTER modal opens)
+    setTimeout(()=> {
+      buildModalGrid();
+    }, 80);
+  });
+
+  /* ------- Download all (sequential) ------- */
+  btnDownloadAll && btnDownloadAll.addEventListener('click', async () => {
+    for(let i=0;i<generatedTiles.length;i++){
+      const a = document.createElement('a'); a.href = generatedTiles[i].url; a.download = generatedTiles[i].name; document.body.appendChild(a); a.click(); a.remove();
+      await new Promise(r=>setTimeout(r,120));
+    }
+  });
+
+  /* ------- Modal grid & open/close ------- */
+  function buildModalGrid(afterBuild){
+    if(!modalGrid) return;
+    modalGrid.innerHTML = '';
+    // Ensure overlay is shown first, then animate tiles in
+    openModal();
+    // create tiles but don't add .show immediately
+    generatedTiles.forEach((t, idx)=>{
+      const wrap = document.createElement('div'); wrap.className = 'tile';
+      const img = document.createElement('img'); img.src = t.url; img.alt = t.name;
+      wrap.appendChild(img);
+      modalGrid.appendChild(wrap);
+      img.addEventListener('click', (ev)=>{ ev.stopPropagation(); openSingleInModal(idx); });
+      // remove potential show class to ensure animation starts when we add it
+      wrap.classList.remove('show');
+    });
+
+    // Give overlay + modal card time to become visible, then stagger tile shows
+    setTimeout(()=>{
+      const tiles = modalGrid.querySelectorAll('.tile');
+      tiles.forEach((wrap, idx)=>{
+        setTimeout(()=> {
+          wrap.classList.add('show');
+        }, idx * 40);
+      });
+      if(typeof afterBuild === 'function') setTimeout(afterBuild, Math.max(80, tiles.length * 40));
+    }, 60);
+  }
+
+  function openModal(){
+    document.body.classList.add('modal-open');
+    if(!modalOverlay) return;
+
+    // ensure any previous fade-out is removed so entry animation can play
+    if(modalCardEl){
+      modalCardEl.classList.remove('fade-out','modal-card--closing');
+      modalCardEl.style.pointerEvents = 'auto';
+    }
+
+    // make overlay visible (use class to trigger modal-card transitions)
+    modalOverlay.style.display = 'flex';
+    // force reflow so transition from hidden->show works reliably
+    void modalOverlay.offsetWidth;
+    modalOverlay.classList.add('show');
+    modalOverlay.setAttribute('aria-hidden','false');
+
+    if(modalGrid){ modalGrid.style.display='grid'; modalGrid.setAttribute('aria-hidden','false'); }
+    if(modalSingle){ modalSingle.style.display='none'; modalSingle.setAttribute('aria-hidden','true'); }
+    if(modalBack) modalBack.style.display='none';
+    if(modalDownload) modalDownload.style.display='none';
+    // focus the modal-card for accessibility
+    modalCardEl && modalCardEl.focus();
+  }
+
+  /* helper to perform the actual modal-card fade-out + cleanup */
+  function _doModalCardClose(){
+    if(!modalOverlay) return;
+
+    // add fade-out class to card so it animates
+    if(modalCardEl){
+      modalCardEl.classList.remove('modal-card--closing');
+      void modalCardEl.offsetWidth; // force reflow
+      modalCardEl.classList.add('fade-out','modal-card--closing');
+    }
+
+    // remove overlay .show so backdrop fades quickly (but keep overlay displayed until animationend)
+    modalOverlay.classList.remove('show');
+    document.body.classList.remove('modal-open');
+
+    const onEnd = () => {
+      // cleanup after animation finished
+      if(modalCardEl){
+        modalCardEl.classList.remove('fade-out','modal-card--closing');
+        modalCardEl.style.pointerEvents = '';
+      }
+      if(modalGrid) modalGrid.innerHTML = '';
+      if(modalSingleImg) modalSingleImg.src = '';
+      if(modalOverlay){
+        modalOverlay.style.display = ''; // hide overlay
+        modalOverlay.setAttribute('aria-hidden','true');
+      }
+    };
+
+    if(modalCardEl){
+      // wait for animationend, with a fallback timeout
+      const handler = function(){
+        modalCardEl.removeEventListener('animationend', handler);
+        onEnd();
+      };
+      modalCardEl.addEventListener('animationend', handler, { once: true });
+
+      // safety fallback in case animationend doesn't fire
+      setTimeout(()=> {
+        try {
+          modalCardEl.removeEventListener('animationend', handler);
+        } catch(e){}
+        onEnd();
+      }, 360);
+    } else {
+      // no modalCardEl — just hide after brief delay
+      setTimeout(onEnd, 180);
+    }
+  }
+
+  /* close function with reverse-staggered tile exit, then modal fade */
+  function closeModalAnimated(){
+    if(!modalOverlay) return;
+
+    // if there are visible tiles, animate them out in reverse order first
+    const tiles = modalGrid ? Array.from(modalGrid.querySelectorAll('.tile')) : [];
+    const visibleTiles = tiles.filter(t => t.classList.contains('show'));
+    const tileCount = visibleTiles.length;
+
+    if(tileCount > 0){
+      const stagger = 40; // ms between each tile hide
+      // remove 'show' in reverse order so last tile added hides first (nice effect)
+      for(let i = tileCount - 1; i >= 0; i--){
+        const t = visibleTiles[i];
+        const delay = (tileCount - 1 - i) * stagger;
+        setTimeout(() => {
+          t.classList.remove('show');
+          t.style.pointerEvents = 'none';
+        }, delay);
+      }
+
+      // wait for staggered exits + an extra buffer, then close modal card
+      const totalDelay = (tileCount * stagger) + 120;
+      setTimeout(() => {
+        _doModalCardClose();
+      }, totalDelay);
+      return;
+    }
+
+    // no tiles to animate — just close immediately
+    _doModalCardClose();
+  }
+
+  // ensure backdrop click AND close button use the new function
+  if(modalOverlay){
+    modalOverlay.addEventListener('click', (e)=>{
+      if(e.target === modalOverlay) closeModalAnimated();
+    });
+  }
+  if(modalClose){
+    try { modalClose.removeEventListener('click', closeModalAnimated); }catch(e){}
+    modalClose.addEventListener('click', closeModalAnimated);
+  }
+
+  /* ------- Single view: pan/zoom (modal) ------- */
+  let singleIndex = -1;
+  const S = { scale:1, tx:0, ty:0, dragging:false, startX:0, startY:0, lastTouchDist:null, minScale:1, maxScale:6 };
+
+  function openSingleInModal(index){
+    if(index < 0 || index >= generatedTiles.length) return;
+    singleIndex = index;
+    const item = generatedTiles[singleIndex];
+    if(!item) return;
+
+    if(!modalOverlay.classList.contains('show')) openModal();
+
+    if(modalGrid){ modalGrid.style.display='none'; modalGrid.setAttribute('aria-hidden','true'); }
+    if(modalSingle){ modalSingle.style.display='flex'; modalSingle.setAttribute('aria-hidden','false'); }
+    if(modalBack) modalBack.style.display='inline-block';
+    if(modalDownload) modalDownload.style.display='inline-block';
+
+    if(modalSingleImg){
+      modalSingleImg.style.opacity = 0;
+      modalSingleImg.src = item.url;
+    }
+    if(modalDownload) modalDownload.onclick = ()=> {
+      const a = document.createElement('a'); a.href = item.url; a.download = item.name; document.body.appendChild(a); a.click(); a.remove();
+    };
+    resetSingleTransform();
+    setTimeout(()=> { if(modalSingleImg) modalSingleImg.style.opacity = 1; }, 30);
+  }
+
+  modalBack && modalBack.addEventListener('click', ()=>{
+    if(modalSingleImg) modalSingleImg.style.opacity = 0;
+    setTimeout(()=>{
+      if(modalSingleImg) modalSingleImg.src = '';
+      if(modalSingle) modalSingle.style.display='none';
+      if(modalGrid) modalGrid.style.display='grid';
+      if(modalBack) modalBack.style.display='none';
+      if(modalDownload) modalDownload.style.display='none';
+      const tiles = modalGrid ? modalGrid.querySelectorAll('.tile') : [];
+      tiles.forEach((t,i)=> { t.classList.remove('show'); setTimeout(()=> t.classList.add('show'), i*30); });
+    }, 140);
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && modalOverlay.classList.contains('show')) closeModalAnimated();
+    if(e.key === 'ArrowLeft' && modalSingle && modalSingle.style.display === 'flex') {
+      openSingleInModal((singleIndex - 1 + generatedTiles.length) % generatedTiles.length);
+    }
+    if(e.key === 'ArrowRight' && modalSingle && modalSingle.style.display === 'flex') {
+      openSingleInModal((singleIndex + 1) % generatedTiles.length);
+    }
+  });
+
+  function applySingleTransform(){ if(modalSingleImg) modalSingleImg.style.transform = `translate(${S.tx}px, ${S.ty}px) scale(${S.scale})`; }
+  function resetSingleTransform(){ S.scale = 1; S.tx = 0; S.ty = 0; S.lastTouchDist = null; if(modalSingleImg){ modalSingleImg.style.transition = 'transform .12s ease'; applySingleTransform(); setTimeout(()=> modalSingleImg.style.transition = '', 120); } }
+
+  if(modalSingleImg){
+    modalSingleImg.addEventListener('wheel', (e)=>{ if(!modalSingle || modalSingle.style.display !== 'flex') return; e.preventDefault(); const rect = modalSingleImg.getBoundingClientRect(); const cx = e.clientX - rect.left; const cy = e.clientY - rect.top; const delta = e.deltaY < 0 ? 1.12 : 0.88; zoomAt(delta, cx, cy); },{passive:false});
+
+    modalSingleImg.addEventListener('pointerdown', (e)=>{ if(!modalSingle || modalSingle.style.display !== 'flex') return; modalSingleImg.setPointerCapture && modalSingleImg.setPointerCapture(e.pointerId); S.dragging = true; S.startX = e.clientX - S.tx; S.startY = e.clientY - S.ty; modalSingleImg.style.cursor = 'grabbing'; });
+    modalSingleImg.addEventListener('pointermove', (e)=>{ if(!S.dragging) return; S.tx = e.clientX - S.startX; S.ty = e.clientY - S.startY; applySingleTransform(); });
+    modalSingleImg.addEventListener('pointerup', (e)=>{ S.dragging = false; try{ modalSingleImg.releasePointerCapture && modalSingleImg.releasePointerCapture(e.pointerId); }catch(err){} modalSingleImg.style.cursor = 'grab'; });
+    modalSingleImg.addEventListener('pointercancel', ()=>{ S.dragging = false; modalSingleImg.style.cursor = 'grab'; });
+
+    function getDist(a,b){ return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY) }
+    function getMid(a,b){ return { x: (a.clientX + b.clientX)/2, y: (a.clientY + b.clientY)/2 } }
+
+    modalSingleImg.addEventListener('touchstart', (e)=>{ if(e.touches.length === 2){ S.lastTouchDist = getDist(e.touches[0], e.touches[1]); S.lastTouchMid = getMid(e.touches[0], e.touches[1]); } else if(e.touches.length === 1){ const t = e.touches[0]; S.startX = t.clientX - S.tx; S.startY = t.clientY - S.ty; } },{passive:false});
+
+    modalSingleImg.addEventListener('touchmove', (e)=>{
+      if(e.touches.length === 2 && S.lastTouchDist){
+        const d = getDist(e.touches[0], e.touches[1]);
+        const mid = getMid(e.touches[0], e.touches[1]);
+        const factor = d / S.lastTouchDist;
+        const rect = modalSingleImg.getBoundingClientRect();
+        const cx = mid.x - rect.left;
+        const cy = mid.y - rect.top;
+        zoomAt(factor, cx, cy);
+        S.lastTouchDist = d; S.lastTouchMid = mid; e.preventDefault();
+      } else if(e.touches.length === 1 && !S.lastTouchDist){
+        const t = e.touches[0];
+        S.tx = t.clientX - S.startX; S.ty = t.clientY - S.startY; applySingleTransform();
+      }
+    },{passive:false});
+
+    modalSingleImg.addEventListener('touchend', (e)=>{ if(e.touches.length < 2) S.lastTouchDist = null; if(e.touches.length === 0) S.lastTouchMid = null; });
+    modalSingleImg.addEventListener('dblclick', ()=> resetSingleTransform());
+  }
+
+  function zoomAt(factor, cx, cy){ const prev = S.scale; let next = prev * factor; next = Math.max(S.minScale, Math.min(S.maxScale, next)); const x0 = (cx - S.tx) / prev; const y0 = (cy - S.ty) / prev; S.scale = next; S.tx = cx - x0 * S.scale; S.ty = cy - y0 * S.scale; applySingleTransform(); }
+
+  document.addEventListener('touchmove', function(e){ if(document.body.classList.contains('modal-open')) e.preventDefault(); },{passive:false});
+
+  // zoom slider logic (incremental)
+  let lastZoomVal = 0;
+  function setupZoomControls(){
+    if(!zoomRange) return;
+    zoomRange.addEventListener('input', (e)=>{
+      if(!cropper) return;
+      const v = Number(zoomRange.value || 0);
+      const delta = (v - lastZoomVal) * 0.04; // scale factor tweak
+      if(Math.abs(delta) > 0){
+        try{ cropper.zoom(delta); }catch(e){}
+      }
+      lastZoomVal = v;
+    });
+    zoomInBtn && zoomInBtn.addEventListener('click', ()=>{ if(cropper) cropper.zoom(0.12); });
+    zoomOutBtn && zoomOutBtn.addEventListener('click', ()=>{ if(cropper) cropper.zoom(-0.12); });
+  }
+  setupZoomControls();
+
+  // mode toggle
+  function setMode(mode){
+    if(!cropper) return;
+    try{
+      cropper.setDragMode(mode === 'move' ? 'move' : 'crop');
+    }catch(e){}
+    if(mode === 'move'){ modeMoveBtn && modeMoveBtn.classList.add('active'); modeCropBtn && modeCropBtn.classList.remove('active'); }
+    else { modeCropBtn && modeCropBtn.classList.add('active'); modeMoveBtn && modeMoveBtn.classList.remove('active'); }
+  }
+  modeCropBtn && modeCropBtn.addEventListener('click', ()=> setMode('crop'));
+  modeMoveBtn && modeMoveBtn.addEventListener('click', ()=> setMode('move'));
+
+  // ensure preview container height updates when image loads
+  if(preview){
+    preview.addEventListener('load', ()=>{
+      debouncedAdjust();
+      // reset zoom slider tracking
+      lastZoomVal = 0; if(zoomRange) zoomRange.value = '0';
+      setTimeout(()=> {
+        if(cropper){
+          try{ const data = cropper.getCropBoxData(); cropper.setCropBoxData(data); }catch(e){}
+        }
+      }, 200);
+    });
+  }
+
+  // expose open preview function
+  window.openTilePreview = function(index){ buildModalGrid(() => openSingleInModal(index||0)); };
+
+})();
+</script>
+
+<!-- BOTTOM DRAWER SCRIPT (FAST OPEN/CLOSE) -->
+<script>
+(function(){
+  const openBtn = document.getElementById('openDrawerBtn');
+  const drawer = document.getElementById('bottomDrawer');
+  const overlay = document.getElementById('sheetOverlay');
+  const menuCloseAll = document.getElementById('menuCloseAll');
+
+  function openDrawer(){
+    if(!drawer || !overlay) return;
+    drawer.classList.add('open');
+    overlay.classList.add('show');
+    drawer.setAttribute('aria-hidden','false');
+    overlay.setAttribute('aria-hidden','false');
+    openBtn && openBtn.setAttribute('aria-expanded','true');
+    // focus first actionable item quickly
+    setTimeout(()=> {
+      const first = drawer.querySelector('button, [tabindex], a');
+      if(first) first.focus();
+    }, 40);
+    // prevent background scrolling
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer(){
+    if(!drawer || !overlay) return;
+    drawer.classList.remove('open');
+    overlay.classList.remove('show');
+    drawer.setAttribute('aria-hidden','true');
+    overlay.setAttribute('aria-hidden','true');
+    openBtn && openBtn.setAttribute('aria-expanded','false');
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  openBtn && openBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(drawer.classList.contains('open')) closeDrawer(); else openDrawer();
+  });
+
+  overlay && overlay.addEventListener('click', (e)=>{
+    closeDrawer();
+  });
+
+  closeBtn && closeBtn.addEventListener('click', (e)=>{
+    closeDrawer();
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && drawer && drawer.classList.contains('open')){
+      closeDrawer();
+    }
+  });
+
+  // wire menu shortcuts to existing controls
+  const menuChoose = document.getElementById('menuChoose');
+  if(menuChoose){
+    menuChoose.addEventListener('click', ()=>{
+      const fileInput = document.getElementById('fileInput');
+      if(fileInput){ fileInput.click(); }
+      closeDrawer();
+    });
+  }
+
+  const menuOpenCrop = document.getElementById('menuOpenCrop');
+  if(menuOpenCrop){
+    menuOpenCrop.addEventListener('click', ()=>{
+      const loadBtn = document.getElementById('btnLoadStart');
+      const fileInput = document.getElementById('fileInput');
+      if(loadBtn && !loadBtn.disabled){ loadBtn.click(); }
+      else if(fileInput) { fileInput.click(); }
+      closeDrawer();
+    });
+  }
+
+  const menuMakeTiles = document.getElementById('menuMakeTiles');
+  if(menuMakeTiles){
+    menuMakeTiles.addEventListener('click', ()=>{
+      const splitBtn = document.getElementById('btnSplit');
+      if(splitBtn && !splitBtn.disabled){ splitBtn.click(); }
+      closeDrawer();
+    });
+  }
+
+  const menuDownloadAll = document.getElementById('menuDownloadAll');
+  if(menuDownloadAll){
+    menuDownloadAll.addEventListener('click', ()=>{
+      const dl = document.getElementById('btnDownloadAll');
+      if(dl && !dl.disabled){ dl.click(); }
+      closeDrawer();
+    });
+  }
+
+  if(menuCloseAll){
+    menuCloseAll.addEventListener('click', (e)=>{
+      closeDrawer();
+    });
+  }
+
+  // quick handle drag to close/open (lightweight)
+  (function addDragToHandle(){
+    const handle = drawer && drawer.querySelector('.drawer-handle');
+    if(!handle || !drawer) return;
+    let startY = 0;
+    let startBottom = 0;
+    let dragging = false;
+
+    handle.addEventListener('pointerdown', (ev)=>{
+      dragging = true;
+      startY = ev.clientY;
+      startBottom = parseFloat(getComputedStyle(drawer).bottom || 0);
+      handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
+      drawer.style.transition = 'none';
+    });
+    window.addEventListener('pointermove', (ev)=>{
+      if(!dragging) return;
+      const dy = startY - ev.clientY; // positive when dragging up
+      const newBottom = Math.min(0, Math.max(- (window.innerHeight * 0.9), startBottom + dy));
+      drawer.style.bottom = (newBottom) + 'px';
+    });
+    window.addEventListener('pointerup', (ev)=>{
+      if(!dragging) return;
+      dragging = false;
+      drawer.style.transition = ''; // restore
+      const rect = drawer.getBoundingClientRect();
+      const visibleHeight = window.innerHeight - rect.top;
+      if(visibleHeight < (window.innerHeight * 0.28)){
+        closeDrawer();
+      } else {
+        openDrawer();
+      }
+    });
+  })();
+
+})();
+</script>
+
+<script>
+  // small nicety: set current year in footer
+  document.getElementById('year') && (document.getElementById('year').textContent = new Date().getFullYear());
+
+  // reveal animations and tc_section show on Start click
+  (function(){
+    const appearEls = Array.from(document.querySelectorAll('.appear'));
+    function revealAppearAll(){
+      appearEls.forEach((el, i) => {
+        const ms = 60 + i * 30;
+        setTimeout(()=> el.classList.add('show'), ms);
+      });
+    }
+
+    function showTCSection(){
+      const tc = document.getElementById('tc_section');
+      if(!tc) return;
+      tc.classList.add('tc-visible');
+      tc.setAttribute('aria-hidden','false');
+      const card = tc.querySelector('.tc-wrap');
+      if(card){ card.classList.add('appear'); setTimeout(()=> card.classList.add('show'), 40); }
+      setTimeout(()=> { tc.scrollIntoView({behavior:'smooth', block:'center'}); }, 120);
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+
+      // --- IMPORTANT: wait for preloader to be dismissed before starting reveal animations ---
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      if(!loadingOverlay || loadingOverlay.classList.contains('hidden')){
+        // no overlay or already hidden -> start reveals shortly
+        setTimeout(revealAppearAll, 60);
+      } else {
+        // wait for the custom event dispatched when overlay finishes hiding
+        document.addEventListener('preloader:dismissed', ()=> {
+          // small buffer to allow any other UI-to-hidden changes to finish
+          setTimeout(revealAppearAll, 20);
+        }, { once: true });
+      }
+      // ------------------------------------------------------------------------------
+
+      // hide tc buttons initially (except choose)
+      const tcRoot = document.getElementById('tc_section');
+      if(tcRoot){
+        tcRoot.querySelectorAll('button').forEach(el=>{
+          if(el.matches('#btnLoadStart') || el.matches('#btnReset') || el.matches('#btnSplit') || el.matches('#btnDownloadAll')){
+            el.classList.add('ui-hidden');
+          }
+        });
+        // ensure choose label visible
+        const choose = document.querySelector('label[for="fileInput"]');
+        if(choose){ choose.classList.add('ui-show'); choose.style.display = 'inline-flex'; }
+      }
+
+      // Start buttons show tc_section
+      const startBtns = [document.getElementById('startBtn'), document.getElementById('startBtnHero')];
+      startBtns.forEach(btn=>{ if(!btn) return; btn.addEventListener('click', (e)=>{ e.preventDefault(); showTCSection(); }); });
+
+      // openPanelBtnHero also opens tc_section
+      const openPanelBtnHero = document.getElementById('openPanelBtnHero');
+      if(openPanelBtnHero){
+        openPanelBtnHero.addEventListener('click', (e)=>{
+          e.preventDefault();
+          showTCSection();
+          setTimeout(()=> { document.getElementById('panel-area') && document.getElementById('panel-area').scrollIntoView({behavior:'smooth', block:'center'}); }, 120);
+        });
+      }
+
+      // When user picks a file: show panelDetails (animated) and show Open & Crop
+      const fileInputEl = document.getElementById('fileInput');
+      const btnLoadStartEl = document.getElementById('btnLoadStart');
+      const btnResetEl = document.getElementById('btnReset');
+      const btnSplitEl = document.getElementById('btnSplit');
+      const btnDownloadAllEl = document.getElementById('btnDownloadAll');
+      const tcPreviewWrap = document.getElementById('tc_preview_wrap');
+      const previewImg = document.getElementById('preview');
+
+      if(fileInputEl){
+        fileInputEl.addEventListener('change', (e)=>{
+          const f = fileInputEl.files && fileInputEl.files[0];
+          if(!f) return;
+          showTCSection();
+
+          if(panelDetails){
+            panelDetails.classList.add('appear');
+            setTimeout(()=> panelDetails.classList.add('show'), 20);
+          }
+          // show Open & Crop button
+          if(btnLoadStartEl){ btnLoadStartEl.classList.remove('ui-hidden'); btnLoadStartEl.classList.add('ui-show'); btnLoadStartEl.style.display='inline-flex'; }
+          // Reset remains hidden until crop is loaded
+          if(btnResetEl){ window.hideBtn ? window.hideBtn(btnResetEl) : btnResetEl.classList.add('ui-hidden'); }
+          if(btnSplitEl){ window.hideBtn ? window.hideBtn(btnSplitEl) : btnSplitEl.classList.add('ui-hidden'); }
+          if(btnDownloadAllEl){ window.hideBtn ? window.hideBtn(btnDownloadAllEl) : btnDownloadAllEl.classList.add('ui-hidden'); }
+          if(tcPreviewWrap) tcPreviewWrap.style.display = 'none';
+        });
+      }
+
+      // When preview image loads (after Open & Crop) preview visible and split button shown
+      if(previewImg){
+        previewImg.addEventListener('load', ()=>{
+          const wrap = document.getElementById('tc_preview_wrap');
+          if(wrap){ wrap.style.display = 'flex'; setTimeout(()=> previewImg.classList.add('visible'), 20); }
+          if(btnSplitEl){ btnSplitEl.classList.remove('ui-hidden'); btnSplitEl.classList.add('ui-show','appear'); btnSplitEl.style.display = 'inline-flex'; setTimeout(()=> btnSplitEl.classList.add('show'), 20); }
+          // Reset should be visible now
+          const btnR = document.getElementById('btnReset');
+          if(btnR){ btnR.classList.remove('ui-hidden'); btnR.classList.add('ui-show','appear'); btnR.style.display = 'inline-flex'; setTimeout(()=> btnR.classList.add('show'), 20); }
+          // hide load start (user already used it)
+          const btnL = document.getElementById('btnLoadStart');
+          if(btnL){ btnL.style.display = 'none'; btnL.classList.remove('ui-show'); btnL.classList.add('ui-hidden'); }
+        });
+      }
+    });
+  })();
+</script>
+</body>
+</html>

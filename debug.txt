@@ -1,0 +1,30 @@
+To regenerate this HTML, follow these strict guidelines:
+Structure and Doctype: Start with  and . Include a  with meta tags for charset (UTF-8), viewport (width=device-width, initial-scale=1), title ("WaCrop — Ultra Floating Tile Viewer (Fixed + UI)"), description ("Updated WaCrop with fixed buttons and floating viewer."), and a link to Google Fonts (Inter family with weights 400,500,600,700,800). Link to CropperJS CSS from unpkg.com (version 1.6.2).
+CSS Styles: Embed all styles in a  tag inside . Use CSS variables in :root for colors (e.g., --bg: #0b0d10, --text: #e7ecf3, --accent: #59c1ff), spacings, radii, shadows, etc. Define global resets (* {box-sizing:border-box}), body background gradient, font family (Inter), and anti-aliasing. Include styles for containers, cards, buttons (btn, abtn variants), navigation, hero with top-shade gradients, panels, slider (.stage, .track, .slide, .dots), comments section (though minimal), tile cutter (.tc-wrap, .tc-preview, controls), modal overlay with animations (@keyframes modalFadeOut), preview grid with tile animations (@keyframes zoomOutAnim), bottom sheet/drawer (.bottom-drawer, fast transitions), preloader (.loading-overlay with spinner and progress), and alternating feature boxes (.features-alt with .feature-box left/right variants, responsive stacking). Ensure responsiveness with media queries (e.g., @media (max-width:720px) for stage aspect, grid stacking). Add performance hints like backface-visibility: hidden. Fix any minor inconsistencies, like ensuring .feature-box.box-right and .box-left use flex for ordering.
+Body Content:
+Preloader div (#loadingOverlay) with loading box, spinner (@keyframes spin), progress bar.
+Header (.site-header) sticky with backdrop-filter, nav with menu button (#openDrawerBtn), brand logo, links, and CTA.
+Hero section with top-shade, content grid (text + panel with specs and slider).
+Tile cutter section (#tc_section) initially hidden, with tc-wrap card, file input, buttons (Choose image, Open & Crop, Reset, Make 6 Tiles, Download All), panel details table, tc-preview with img#preview, mode buttons (Crop box, Move image), zoom controls.
+Alternating features section (.features-alt) with 2 boxes (left/right) using picsum.photos placeholders.
+Modal overlay (#tilePreviewModal) for tile previews, with grid and single view (zoom/pan support).
+Bottom drawer (#bottomDrawer) with overlay, handle, content rows for menu actions.
+Features section with 3-card grid.
+Footer with copyright and back-to-top.
+JavaScript Scripts: Embed multiple  tags at the end:
+Preloader and slider script: Gather media URLs (including IMAGES array), preload with timeouts and progress callbacks, build slider with seamless looping, autoplay, drag gestures, dots, transitions.
+Cropper.js from unpkg (version 1.6.2).
+escapeHtml helper function.
+Tile cutter script: Handle file input, resize images, init Cropper with options (aspect 3/2, viewMode 2), split into 6 tiles with insets, modal grid/single with animations, zoom/pan in single view, mode toggles, reset.
+Bottom drawer script: Open/close with fast transitions, drag handle, menu shortcuts wiring to buttons.
+Additional script: Set year in footer, reveal animations on load (wait for preloader:dismissed event), show/hide tc_section on clicks, button visibility logic.
+Advanced Requirements:
+Ensure full responsiveness: Slider aspect changes at 720px, grids stack at 780px/860px, max-heights for previews.
+Animations: Use cubic-bezier for smooth entries/exits, stagger tile shows in modal, reverse-stagger on close, fast drawer (0.06s linear).
+Accessibility: ARIA attributes (roles, labels, live regions), keyboard nav (Esc close, arrows for slider/single), focus management.
+Performance: Limit data points, use will-change, backface-hidden, imageSmoothingQuality 'high', debounce resizes.
+Edge Cases: Handle no images, fallback splitting, cross-origin images, touch/pinch zoom, pointer events.
+Enhancements: Add subtle improvements like clamping canvas in Cropper, better error handling in preloads, ensure no console errors.
+Exact Fidelity: Match class names, IDs, placeholders (picsum.photos), constants (e.g., IMAGES array with 5 URLs), timeouts (e.g., AUTOPLAY_DELAY=3000).
+Output Format: Generate the full HTML as a single, valid document. Do not add extra comments or explanations in the code. Ensure it's minifiable but readable. Test mentally for no syntax errors.
+Regenerate the HTML now based on this prompt.
